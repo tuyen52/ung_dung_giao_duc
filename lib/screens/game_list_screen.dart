@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../game/game_registry.dart';
+import '../game/core/game_registry.dart';
 import 'game_select_screen.dart';
 
 class GameListScreen extends StatelessWidget {

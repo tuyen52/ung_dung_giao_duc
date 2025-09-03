@@ -37,6 +37,8 @@ dependencies:
   firebase_auth: ^5.2.0
   cloud_firestore: ^5.4.4
   firebase_database: ^11.3.10
+  flutter_animate: ^4.5.0
+  audioplayers: ^6.0.0
 
 
 
@@ -57,11 +59,15 @@ dev_dependencies:
 # The following section is specific to Flutter packages.
 flutter:
 
+
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
-
+  assets:
+    - assets/images/
+    - assets/sfx/
+    - assets/audio/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

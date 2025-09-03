@@ -3,8 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/tre.dart';
 import '../services/tre_service.dart';
-import 'package:mobileapp/game/types.dart';
-import '../game/game_registry.dart';
+import 'package:mobileapp/game/core/types.dart';
+import '../game/core/game_registry.dart';
 
 class GameSelectScreen extends StatefulWidget {
   final GameInfo gameInfo;

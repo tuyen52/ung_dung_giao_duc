@@ -6,10 +6,10 @@ import 'firebase_options.dart';
 import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
 import 'home_shell.dart';
-import 'screens/recycle_sort_game_launcher.dart';
-import 'screens/traffic_safety_game_launcher.dart';
-import 'screens/plant_care_game_launcher.dart'; // Đảm bảo import đúng launcher
-import 'game/types.dart';
+import 'game/recycle_sort/recycle_sort_launcher.dart';
+import 'game/traffic_safety/traffic_safety_launcher.dart';
+import 'game/plant_care/plant_care_launcher.dart';
+import 'game/core/types.dart';
 
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 

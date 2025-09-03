@@ -1,5 +1,5 @@
 import 'package:firebase_database/firebase_database.dart';
-import '../game/game_progress.dart';
+import '../game/core/game_progress.dart';
 
 class GameProgressService {
   final _db = FirebaseDatabase.instance;

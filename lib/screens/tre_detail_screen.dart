@@ -4,8 +4,8 @@ import '../services/tre_service.dart';
 import 'reward_screen.dart';
 
 // game
-import 'package:mobileapp/game/types.dart';
-import 'package:mobileapp/screens/recycle_sort_game_launcher.dart';
+import 'package:mobileapp/game/core/types.dart';
+import 'package:mobileapp/game/recycle_sort/recycle_sort_launcher.dart';
 
 class TreDetailScreen extends StatefulWidget {
   final Tre tre;

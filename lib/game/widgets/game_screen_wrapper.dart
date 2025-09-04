@@ -1,12 +1,13 @@
 // lib/game/widgets/game_screen_wrapper.dart
 import 'package:flutter/material.dart';
-import 'package:mobileapp/services/audio_service.dart'; // THÊM: Import audio service
+import 'package:mobileapp/services/audio_service.dart';
 import 'game_pause_menu.dart';
 
 class GameScreenWrapper extends StatefulWidget {
   final Widget Function(BuildContext context, bool isPaused) builder;
   final String gameName;
-  final VoidCallback onExit;
+  final VoidCallback onFinishAndExit;
+  final VoidCallback? onSaveAndExit;
   final VoidCallback? onRestart;
   final VoidCallback? onHandbook;
 
@@ -14,7 +15,8 @@ class GameScreenWrapper extends StatefulWidget {
     super.key,
     required this.builder,
     required this.gameName,
-    required this.onExit,
+    required this.onFinishAndExit,
+    this.onSaveAndExit,
     this.onRestart,
     this.onHandbook,
   });
@@ -25,24 +27,57 @@ class GameScreenWrapper extends StatefulWidget {
 
 class _GameScreenWrapperState extends State<GameScreenWrapper> {
   bool _isPaused = false;
-  final _audioService = AudioService.instance; // THÊM: Lấy instance của audio service
+  final _audioService = AudioService.instance;
 
   @override
   void initState() {
     super.initState();
-    // THÊM: Bắt đầu chơi nhạc nền khi vào game
-    // Hãy thay 'audio/background_music.mp3' bằng đường dẫn file nhạc của bạn
     _audioService.playBgm('audio/background_music.mp3');
   }
 
   @override
   void dispose() {
-    // THÊM: Dừng nhạc nền khi thoát khỏi màn hình game
     _audioService.stopBgm();
     super.dispose();
   }
 
-  // SỬA: Cập nhật hàm _showSettings để hiển thị Dialog điều chỉnh âm lượng
+  void _showExitConfirmationDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Xác nhận thoát'),
+          content: const Text('Bạn muốn kết thúc ván chơi hay lưu lại để chơi sau?'),
+          actions: <Widget>[
+            if (widget.onSaveAndExit != null)
+              TextButton(
+                child: const Text('Lưu & Thoát'),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  widget.onSaveAndExit!();
+                },
+              ),
+            TextButton(
+              child: const Text('Thoát & Tổng kết'),
+              onPressed: () {
+                Navigator.of(context).pop();
+                widget.onFinishAndExit();
+              },
+            ),
+            TextButton(
+              style: TextButton.styleFrom(foregroundColor: Colors.grey),
+              child: const Text('Hủy'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   void _showSettings() {
     showDialog(
       context: context,
@@ -53,18 +88,12 @@ class _GameScreenWrapperState extends State<GameScreenWrapper> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text('Âm lượng nhạc nền'),
-            // Sử dụng ValueListenableBuilder để tự động cập nhật UI khi âm lượng thay đổi
             ValueListenableBuilder<double>(
               valueListenable: _audioService.volumeNotifier,
               builder: (context, volume, child) {
                 return Slider(
                   value: volume,
-                  min: 0.0,
-                  max: 1.0,
-                  divisions: 10,
-                  label: (volume * 100).toStringAsFixed(0),
                   onChanged: (newVolume) {
-                    // Cập nhật âm lượng thông qua service
                     _audioService.volumeNotifier.value = newVolume;
                   },
                 );
@@ -131,9 +160,9 @@ class _GameScreenWrapperState extends State<GameScreenWrapper> {
                 setState(() => _isPaused = false);
                 widget.onRestart?.call();
               },
-              onSettings: _showSettings, // <-- Hành động đã được cập nhật
+              onSettings: _showSettings,
               onHandbook: widget.onHandbook,
-              onExit: widget.onExit,
+              onExit: _showExitConfirmationDialog,
             ),
         ],
       ),

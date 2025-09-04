@@ -97,7 +97,6 @@ class _TrafficSafetyGameLauncherState extends State<TrafficSafetyGameLauncher> {
     );
   }
 
-  // Hàm để hiển thị hướng dẫn
   void _showHandbook() {
     showDialog(
       context: context,
@@ -118,7 +117,6 @@ class _TrafficSafetyGameLauncherState extends State<TrafficSafetyGameLauncher> {
     );
   }
 
-  // Hàm để chơi lại
   void _restartGame() async {
     await GameProgressService().clear(widget.treId, _gameId);
     if (!mounted) return;
@@ -145,7 +143,11 @@ class _TrafficSafetyGameLauncherState extends State<TrafficSafetyGameLauncher> {
 
     return GameScreenWrapper(
       gameName: _gameName,
-      onExit: () {
+      // SỬA: Cập nhật các callback mới
+      onFinishAndExit: () {
+        _playScreenKey.currentState?.finishGame();
+      },
+      onSaveAndExit: () {
         _playScreenKey.currentState?.outToHome();
       },
       onRestart: _restartGame,

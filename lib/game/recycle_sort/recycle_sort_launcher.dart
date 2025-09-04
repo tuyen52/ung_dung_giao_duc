@@ -100,7 +100,6 @@ class _RecycleSortGameLauncherState extends State<RecycleSortGameLauncher> {
     );
   }
 
-  // Hàm để hiển thị hướng dẫn
   void _showHandbook() {
     showDialog(
       context: context,
@@ -120,12 +119,9 @@ class _RecycleSortGameLauncherState extends State<RecycleSortGameLauncher> {
     );
   }
 
-  // Hàm để chơi lại
   void _restartGame() async {
-    // Xóa tiến trình cũ trước khi chơi lại
     await GameProgressService().clear(widget.treId, _gameId);
     if (!mounted) return;
-    // Thay thế màn hình hiện tại bằng một màn hình game mới
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (context) => RecycleSortGameLauncher(
@@ -149,7 +145,11 @@ class _RecycleSortGameLauncherState extends State<RecycleSortGameLauncher> {
 
     return GameScreenWrapper(
       gameName: _gameName,
-      onExit: () {
+      // SỬA: Cập nhật các callback mới
+      onFinishAndExit: () {
+        _playScreenKey.currentState?.finishGame();
+      },
+      onSaveAndExit: () {
         _playScreenKey.currentState?.outToHome();
       },
       onRestart: _restartGame,

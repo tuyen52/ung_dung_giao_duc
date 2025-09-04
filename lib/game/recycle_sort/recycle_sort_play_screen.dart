@@ -6,7 +6,7 @@ import 'package:mobileapp/game/core/game.dart';
 import 'package:mobileapp/game/core/types.dart';
 import 'package:mobileapp/game/recycle_sort/data/trash_data.dart';
 
-// Các định nghĩa riêng cho game phân loại rác
+// ... (Các enum và class TrashItem giữ nguyên)
 enum TrashType { organic, inorganic }
 
 class TrashItem {
@@ -17,6 +17,7 @@ class TrashItem {
 
   const TrashItem(this.id, this.name, this.emoji, this.type);
 }
+
 
 class RecycleSortPlayScreen extends StatefulWidget {
   final Game game;
@@ -87,6 +88,11 @@ class RecycleSortPlayScreenState extends State<RecycleSortPlayScreen> {
   void dispose() {
     _ticker?.cancel();
     super.dispose();
+  }
+
+  // THÊM: Hàm này để launcher có thể gọi khi người dùng muốn "Thoát & Tổng kết"
+  Future<void> finishGame() async {
+    await _finish();
   }
 
   int _durationByDifficulty() {
@@ -199,6 +205,7 @@ class RecycleSortPlayScreenState extends State<RecycleSortPlayScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // ... (Toàn bộ hàm build giữ nguyên, không cần thay đổi)
     if (_index >= _deck.length) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _finish());
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
@@ -212,22 +219,17 @@ class RecycleSortPlayScreenState extends State<RecycleSortPlayScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          // LỚP 1: BACKGROUND GIF
           Positioned.fill(
             child: Image.asset(
-              'assets/images/game_background.gif', // <-- THAY TÊN FILE GIF CỦA BẠN VÀO ĐÂY
+              'assets/images/game_background.gif',
               fit: BoxFit.cover,
             ),
           ),
-
-          // LỚP 1.5: LỚP PHỦ MỜ
           Positioned.fill(
             child: Container(
               color: Colors.black.withOpacity(0.3),
             ),
           ),
-
-          // LỚP 2: NỘI DUNG GAME
           SafeArea(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -273,7 +275,7 @@ class RecycleSortPlayScreenState extends State<RecycleSortPlayScreen> {
                       style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
-                          color: Colors.white, // Đổi màu chữ thành trắng
+                          color: Colors.white,
                           shadows: [Shadow(blurRadius: 2.0, color: Colors.black)])),
                 ),
                 Expanded(
@@ -302,7 +304,7 @@ class RecycleSortPlayScreenState extends State<RecycleSortPlayScreen> {
                             key: _organicBinKey,
                             type: TrashType.organic,
                             label: 'Hữu cơ',
-                            color: const Color(0xFF66BB6A), // Màu xanh lá sáng hơn
+                            color: const Color(0xFF66BB6A),
                             onAccept: () => !widget.isPaused
                                 ? _handleAnswer(TrashType.organic)
                                 : null,
@@ -312,7 +314,7 @@ class RecycleSortPlayScreenState extends State<RecycleSortPlayScreen> {
                             key: _inorganicBinKey,
                             type: TrashType.inorganic,
                             label: 'Vô cơ',
-                            color: const Color(0xFFBDBDBD), // Màu xám sáng hơn
+                            color: const Color(0xFFBDBDBD),
                             onAccept: () => !widget.isPaused
                                 ? _handleAnswer(TrashType.inorganic)
                                 : null,
@@ -346,8 +348,6 @@ class RecycleSortPlayScreenState extends State<RecycleSortPlayScreen> {
               ],
             ),
           ),
-
-          // LỚP 3: CÁC OVERLAY FEEDBACK
           if (_showCorrectOverlay)
             const Center(child: _FeedbackOverlay(isCorrect: true)),
           if (_showWrongOverlay)
@@ -393,6 +393,7 @@ class RecycleSortPlayScreenState extends State<RecycleSortPlayScreen> {
   );
 }
 
+// ... (Các widget _BinTarget, _FeedbackOverlay giữ nguyên)
 class _BinTarget extends StatefulWidget {
   final TrashType type;
   final String label;

@@ -1,3 +1,4 @@
+// lib/game/plant_care/plant_care_play_screen.dart
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -5,12 +6,10 @@ import 'package:mobileapp/game/core/game.dart';
 import 'package:mobileapp/game/core/types.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:audioplayers/audioplayers.dart';
-import 'data/plant_care_data.dart'; // THÊM: Import file dữ liệu mới
+import 'data/plant_care_data.dart';
 
-// Enum để theo dõi trạng thái animation
+// ... (Các enum và class Plant, CareTool giữ nguyên)
 enum AnimationTrigger { idle, correct, incorrect }
-
-// SỬA: Chuyển các enum/class thành public (bỏ dấu `_`)
 enum PlantStage {
   hatGiong(0.4),
   cayCon(0.3),
@@ -20,20 +19,16 @@ enum PlantStage {
   final double eventProbability;
   const PlantStage(this.eventProbability);
 }
-
 enum PlantIssue { datKho, thieuAnhSang, sauBenh, quaTai, thieuChatDinhDuong }
 enum CareToolType { nuoc, anhSang, thuocTruSau, catTia, phanBon }
-
 class CareTool {
   final String label;
   final IconData icon;
   final CareToolType type;
   final PlantIssue fixes;
   final String explanation;
-  // THÊM: const constructor
   const CareTool(this.label, this.icon, this.type, this.fixes, this.explanation);
 }
-
 class Plant {
   final String label;
   final PlantStage stage;
@@ -42,9 +37,9 @@ class Plant {
   bool isCompleted;
   AnimationTrigger animationTrigger = AnimationTrigger.idle;
   int animationCounter = 0;
-
   Plant(this.label, this.stage, this.issue, this.health, this.isCompleted);
 }
+
 
 class PlantCarePlayScreen extends StatefulWidget {
   final Game game;
@@ -53,23 +48,26 @@ class PlantCarePlayScreen extends StatefulWidget {
   const PlantCarePlayScreen({super.key, required this.game, required this.onFinish});
 
   @override
-  State<PlantCarePlayScreen> createState() => _PlantCarePlayScreenState();
+  // SỬA: Cập nhật hàm createState để trả về lớp State public
+  State<PlantCarePlayScreen> createState() => PlantCarePlayScreenState();
 }
 
-class _PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
+// SỬA: Đổi tên lớp State thành public (bỏ dấu `_`)
+class PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
   final _rnd = Random();
-  // XÓA: Danh sách _tools đã được chuyển ra file data
-  // final _tools = const <CareTool>[...];
-
   final _plants = <Plant>[];
   late Map<CareToolType, int> _resources;
-  int _correctAnswers = 0;
-  int _wrongAnswers = 0;
+
+  // Các biến này vẫn là public để launcher có thể truy cập
+  int correctAnswers = 0;
+  int wrongAnswers = 0;
+
   int _completedRounds = 0;
   final int _totalRounds = 3;
 
   final AudioPlayer _audioPlayer = AudioPlayer();
 
+  // ... (Toàn bộ các hàm bên trong lớp State giữ nguyên không thay đổi)
   @override
   void initState() {
     super.initState();
@@ -89,7 +87,6 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
 
   void _newRound({bool isFirstTime = false}) {
     _plants.clear();
-    // SỬA: Sử dụng quy tắc game từ file data
     final stageToIssues = plantStageRules;
 
     final stages = PlantStage.values;
@@ -97,7 +94,6 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
       final stage = stages[_rnd.nextInt(stages.length)];
       final issues = stageToIssues[stage]!;
       final issue = issues[_rnd.nextInt(issues.length)];
-      // SỬA: Sử dụng map tên từ file data
       _plants.add(Plant(plantStageCreativeNames[stage]!, stage, issue, 100.0, false));
     }
 
@@ -133,8 +129,6 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
     }
   }
 
-  // ... (Nội dung các hàm mini-game và event giữ nguyên, chỉ cần sửa các tên private thành public) ...
-  // Ví dụ: _Plant -> Plant, _CareToolType -> CareToolType
   void _showWateringMiniGame(Plant plant) {
     int taps = 0;
     const requiredTaps = 5;
@@ -163,7 +157,7 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
                   Navigator.pop(context);
                   setState(() {
                     plant.health = 100.0;
-                    _correctAnswers += 10;
+                    correctAnswers += 10;
                     _resources[CareToolType.nuoc] = (_resources[CareToolType.nuoc]! - 1).clamp(0, 100);
                   });
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -182,7 +176,7 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
                 Navigator.pop(context);
                 setState(() {
                   plant.health -= 20;
-                  _wrongAnswers++;
+                  wrongAnswers++;
                 });
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
@@ -206,13 +200,13 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Sự Kiện: Xua Đuổi Chim'),
         content: const Text('Cây con bị chim tấn công! Chọn công cụ để xua đuổi.'),
-        actions: plantCareTools.map((tool) => TextButton( // SỬA: dùng plantCareTools
+        actions: plantCareTools.map((tool) => TextButton(
           onPressed: () {
             Navigator.pop(context);
             if (tool.type == CareToolType.thuocTruSau && _resources[tool.type]! > 0) {
               setState(() {
                 plant.health = 100.0;
-                _correctAnswers += 15;
+                correctAnswers += 15;
                 _resources[tool.type] = (_resources[tool.type]! - 1).clamp(0, 100);
               });
               ScaffoldMessenger.of(context).showSnackBar(
@@ -225,7 +219,7 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
             } else {
               setState(() {
                 plant.health -= 20;
-                _wrongAnswers++;
+                wrongAnswers++;
               });
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
@@ -257,7 +251,7 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
               if (index == correctBranch && _resources[CareToolType.catTia]! > 0) {
                 setState(() {
                   plant.health = 100.0;
-                  _correctAnswers += 20;
+                  correctAnswers += 20;
                   _resources[CareToolType.catTia] = (_resources[CareToolType.catTia]! - 1).clamp(0, 100);
                 });
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -270,7 +264,7 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
               } else {
                 setState(() {
                   plant.health -= 20;
-                  _wrongAnswers++;
+                  wrongAnswers++;
                 });
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
@@ -316,7 +310,7 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
                   Navigator.pop(context);
                   setState(() {
                     plant.health = 100.0;
-                    _correctAnswers += 30;
+                    correctAnswers += 30;
                     _resources[CareToolType.thuocTruSau] = (_resources[CareToolType.thuocTruSau]! - 1).clamp(0, 100);
                   });
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -335,7 +329,7 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
                 Navigator.pop(context);
                 setState(() {
                   plant.health -= 20;
-                  _wrongAnswers++;
+                  wrongAnswers++;
                 });
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
@@ -353,9 +347,8 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
     );
   }
 
-
   void _onCorrectAnswer(CareTool correctTool, CareToolType selectedTool) {
-    _correctAnswers++;
+    correctAnswers++;
     _resources[selectedTool] = (_resources[selectedTool]! - 1).clamp(0, 100);
 
     if (_plants.isEmpty) return;
@@ -373,7 +366,7 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
     if (_plants.every((p) => p.isCompleted)) {
       _completedRounds++;
       if (_completedRounds >= _totalRounds) {
-        widget.onFinish(_correctAnswers, _wrongAnswers);
+        widget.onFinish(correctAnswers, wrongAnswers);
       } else {
         _showRoundSummary();
       }
@@ -398,7 +391,7 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
     } else {
       _playSound('incorrect.mp3');
       setState(() {
-        _wrongAnswers++;
+        wrongAnswers++;
         plant.health = (plant.health - 34).clamp(0, 100);
         plant.animationTrigger = AnimationTrigger.incorrect;
         plant.animationCounter++;
@@ -412,8 +405,6 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
       );
     }
   }
-
-  // XÓA: Toàn bộ các hàm _stageToPlantName và _issueLabel
 
   void _showRoundSummary() {
     showDialog(
@@ -443,11 +434,10 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
-            children: plantCareTools // SỬA: Dùng plantCareTools
+            children: plantCareTools
                 .map(
                   (tool) => Padding(
                 padding: const EdgeInsets.only(bottom: 8.0),
-                // SỬA: Dùng map plantIssueLabels
                 child: Text('• Khi cây "${plantIssueLabels[tool.fixes]}", hãy dùng "${tool.label}".'),
               ),
             )
@@ -487,7 +477,7 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 16.0),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: plantCareTools.map((tool) { // SỬA: Dùng plantCareTools
+                  children: plantCareTools.map((tool) {
                     final bool hasResources = _resources[tool.type]! > 0;
                     return Draggable<CareToolType>(
                       data: tool.type,
@@ -559,7 +549,7 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
               child: Padding(
                 padding: const EdgeInsets.all(8.0),
                 child: FilledButton(
-                  onPressed: () => widget.onFinish(_correctAnswers, _wrongAnswers),
+                  onPressed: () => widget.onFinish(correctAnswers, wrongAnswers),
                   child: const Text('Kết thúc lượt chơi'),
                 ),
               ),
@@ -570,7 +560,7 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
     );
   }
 }
-
+// Các widget ToolWidget và PlantCard giữ nguyên, không cần thay đổi
 class ToolWidget extends StatelessWidget {
   const ToolWidget({
     super.key,
@@ -660,7 +650,7 @@ class PlantCard extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
                       Image.asset(
-                        plantImagePaths[plant.stage]!, // SỬA
+                        plantImagePaths[plant.stage]!,
                         height: fontSize * 1.8,
                         fit: BoxFit.contain,
                         errorBuilder: (context, error, stackTrace) =>
@@ -676,7 +666,7 @@ class PlantCard extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        plantStageDescriptiveNames[plant.stage]!, // SỬA
+                        plantStageDescriptiveNames[plant.stage]!,
                         style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
                       ),
                       const SizedBox(height: 8),
@@ -694,7 +684,7 @@ class PlantCard extends StatelessWidget {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              plantIssueLabels[plant.issue]!, // SỬA
+                              plantIssueLabels[plant.issue]!,
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 color: Colors.red.shade700,

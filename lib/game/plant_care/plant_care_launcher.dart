@@ -7,7 +7,7 @@ import 'package:mobileapp/game/plant_care/plant_care_game.dart';
 import 'package:mobileapp/game/plant_care/plant_care_play_screen.dart';
 import 'package:mobileapp/game/core/types.dart';
 import 'package:mobileapp/game/widgets/game_screen_wrapper.dart';
-import 'package:mobileapp/game/plant_care/data/plant_care_data.dart'; // Thêm import dữ liệu game
+import 'package:mobileapp/game/plant_care/data/plant_care_data.dart';
 
 // Models & Services
 import '../core/game_progress.dart';
@@ -38,6 +38,9 @@ class _PlantCareGameLauncherState extends State<PlantCareGameLauncher> {
   static const String _gameId = 'plant_care';
   static const String _gameName = 'Chăm Sóc Cây Trồng';
 
+  // SỬA: Sử dụng đúng tên lớp State public
+  final GlobalKey<PlantCarePlayScreenState> _playScreenKey = GlobalKey();
+
   int _mapDifficulty(GameDifficulty d) => switch (d) {
     GameDifficulty.easy => 1,
     GameDifficulty.medium => 2,
@@ -48,7 +51,6 @@ class _PlantCareGameLauncherState extends State<PlantCareGameLauncher> {
     final raw = correct * 20 - wrong * 10;
     final score = raw < 0 ? 0 : raw;
 
-    // Game này không có progress nên ta không cần đọc lại difficulty từ progress
     await GameSessionService().saveAndReward(
       treId: widget.treId,
       gameId: _gameId,
@@ -74,7 +76,6 @@ class _PlantCareGameLauncherState extends State<PlantCareGameLauncher> {
     );
   }
 
-  // Hàm để hiển thị hướng dẫn
   void _showHandbook() {
     showDialog(
       context: context,
@@ -105,9 +106,7 @@ class _PlantCareGameLauncherState extends State<PlantCareGameLauncher> {
     );
   }
 
-  // Hàm để chơi lại
   void _restartGame() {
-    // Game này không lưu progress, nên chỉ cần khởi động lại màn hình launcher
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (context) => PlantCareGameLauncher(
@@ -125,15 +124,19 @@ class _PlantCareGameLauncherState extends State<PlantCareGameLauncher> {
 
     return GameScreenWrapper(
       gameName: _gameName,
-      // Trong game này, nút thoát chỉ cần pop màn hình hiện tại
-      onExit: () => Navigator.of(context).pop(),
+      onFinishAndExit: () {
+        final state = _playScreenKey.currentState;
+        if (state != null) {
+          _finishAndSave(state.correctAnswers, state.wrongAnswers);
+        } else {
+          Navigator.of(context).pop();
+        }
+      },
       onRestart: _restartGame,
       onHandbook: _showHandbook,
       builder: (context, isPaused) {
-        // Game Chăm sóc cây hiện tại không có cơ chế pause sẵn,
-        // nhưng wrapper vẫn sẽ hiển thị menu. Trạng thái isPaused có thể
-        // được truyền xuống và xử lý trong PlantCarePlayScreen nếu cần.
         return PlantCarePlayScreen(
+          key: _playScreenKey,
           game: game,
           onFinish: (c, w) =>
               WidgetsBinding.instance.addPostFrameCallback((_) => _finishAndSave(c, w)),

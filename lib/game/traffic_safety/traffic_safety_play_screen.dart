@@ -4,8 +4,9 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:mobileapp/game/core/game.dart';
 import 'package:mobileapp/game/core/types.dart';
-import 'package:mobileapp/game/traffic_safety/data/traffic_safety_questions.dart'; // Import file dữ liệu mới
+import 'package:mobileapp/game/traffic_safety/data/traffic_safety_questions.dart';
 
+// ... (Enum và Class Question giữ nguyên)
 enum QuestionType { multipleChoice, sorting, imageSelection }
 
 class Question {
@@ -17,7 +18,7 @@ class Question {
   final List<int> correctAnswerIndices;
   final QuestionType type;
 
-  const Question({ // Thêm const để có thể dùng trong list const
+  const Question({
     required this.id,
     required this.situation,
     this.icon,
@@ -92,6 +93,11 @@ class TrafficSafetyPlayScreenState extends State<TrafficSafetyPlayScreen> {
     super.dispose();
   }
 
+  // THÊM: Hàm này để launcher có thể gọi khi người dùng muốn "Thoát & Tổng kết"
+  Future<void> finishGame() async {
+    await _finish();
+  }
+
   int _durationByDifficulty() {
     final d = widget.game.difficulty;
     if (d == 1) return 90;
@@ -102,7 +108,7 @@ class TrafficSafetyPlayScreenState extends State<TrafficSafetyPlayScreen> {
   void _setupDeckAndState() {
     if (widget.initialDeck != null && widget.initialIndex != null) {
       _deck = widget.initialDeck!
-          .map((id) => trafficSafetyQuestionsPool.firstWhere((e) => e.id == id)) // Sử dụng dữ liệu mới
+          .map((id) => trafficSafetyQuestionsPool.firstWhere((e) => e.id == id))
           .toList();
       _index = widget.initialIndex!.clamp(0, _deck.isEmpty ? 0 : _deck.length - 1);
       _correct = widget.initialCorrect ?? 0;
@@ -112,7 +118,7 @@ class TrafficSafetyPlayScreenState extends State<TrafficSafetyPlayScreen> {
         WidgetsBinding.instance.addPostFrameCallback((_) => _finish());
       }
     } else {
-      final all = List<Question>.from(trafficSafetyQuestionsPool); // Sử dụng dữ liệu mới
+      final all = List<Question>.from(trafficSafetyQuestionsPool);
       all.shuffle();
       _deck = all.take(_totalRounds).toList();
       _index = 0;

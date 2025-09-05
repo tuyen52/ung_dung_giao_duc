@@ -29,7 +29,8 @@ class TrafficSafetyGameLauncher extends StatefulWidget {
   });
 
   @override
-  State<TrafficSafetyGameLauncher> createState() => _TrafficSafetyGameLauncherState();
+  State<TrafficSafetyGameLauncher> createState() =>
+      _TrafficSafetyGameLauncherState();
 }
 
 class _TrafficSafetyGameLauncherState extends State<TrafficSafetyGameLauncher> {
@@ -39,7 +40,8 @@ class _TrafficSafetyGameLauncherState extends State<TrafficSafetyGameLauncher> {
   bool _loading = true;
   GameProgress? _progress;
 
-  final GlobalKey<TrafficSafetyPlayScreenState> _playScreenKey = GlobalKey<TrafficSafetyPlayScreenState>();
+  final GlobalKey<TrafficSafetyPlayScreenState> _playScreenKey =
+  GlobalKey<TrafficSafetyPlayScreenState>();
 
   @override
   void initState() {
@@ -76,7 +78,8 @@ class _TrafficSafetyGameLauncherState extends State<TrafficSafetyGameLauncher> {
       treId: widget.treId,
       gameId: _gameId,
       gameName: _gameName,
-      difficulty: (_progress?.difficulty ?? _mapDifficulty(widget.difficulty)).toString(),
+      difficulty:
+      (_progress?.difficulty ?? _mapDifficulty(widget.difficulty)).toString(),
       correct: correct,
       wrong: wrong,
     );
@@ -97,26 +100,6 @@ class _TrafficSafetyGameLauncherState extends State<TrafficSafetyGameLauncher> {
     );
   }
 
-  void _showHandbook() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Hướng dẫn: An Toàn Giao Thông'),
-        content: const Text(
-            'Đọc kỹ tình huống và chọn câu trả lời đúng nhất.\n\n'
-                '• Với câu hỏi trắc nghiệm, hãy chọn 1 đáp án.\n'
-                '• Với câu hỏi sắp xếp, hãy kéo các lựa chọn vào ô theo thứ tự đúng.\n'
-                '• Với câu hỏi hình ảnh, hãy chọn hình ảnh phù hợp với yêu cầu.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Đã hiểu'),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _restartGame() async {
     await GameProgressService().clear(widget.treId, _gameId);
     if (!mounted) return;
@@ -131,19 +114,18 @@ class _TrafficSafetyGameLauncherState extends State<TrafficSafetyGameLauncher> {
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
     if (_loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final int difficultyInt = _progress?.difficulty ?? _mapDifficulty(widget.difficulty);
+    final int difficultyInt =
+        _progress?.difficulty ?? _mapDifficulty(widget.difficulty);
     final Game game = TrafficSafetyGame(difficulty: difficultyInt);
 
     return GameScreenWrapper(
       gameName: _gameName,
-      // SỬA: Cập nhật các callback mới
       onFinishAndExit: () {
         _playScreenKey.currentState?.finishGame();
       },
@@ -151,13 +133,22 @@ class _TrafficSafetyGameLauncherState extends State<TrafficSafetyGameLauncher> {
         _playScreenKey.currentState?.outToHome();
       },
       onRestart: _restartGame,
-      onHandbook: _showHandbook,
+      // CẬP NHẬT: Truyền nội dung của Sổ tay vào wrapper
+      handbookContent: const Text(
+        'Đọc kỹ tình huống và chọn câu trả lời đúng nhất.\n\n'
+            '• Với câu hỏi trắc nghiệm, hãy chọn 1 đáp án.\n'
+            '• Với câu hỏi sắp xếp, hãy kéo các lựa chọn vào ô theo thứ tự đúng.\n'
+            '• Với câu hỏi hình ảnh, hãy chọn hình ảnh phù hợp với yêu cầu.',
+        textAlign: TextAlign.center,
+        style: TextStyle(color: Colors.white70, fontSize: 16.0),
+      ),
       builder: (context, isPaused) {
         return TrafficSafetyPlayScreen(
           key: _playScreenKey,
           isPaused: isPaused,
           game: game,
-          onFinish: (c, w) => WidgetsBinding.instance.addPostFrameCallback((_) => _finishAndSave(c, w)),
+          onFinish: (c, w) => WidgetsBinding.instance
+              .addPostFrameCallback((_) => _finishAndSave(c, w)),
           onSaveProgress: ({
             required List<String> deck,
             required int index,

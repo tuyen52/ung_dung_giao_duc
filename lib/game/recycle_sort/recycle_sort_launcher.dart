@@ -100,25 +100,6 @@ class _RecycleSortGameLauncherState extends State<RecycleSortGameLauncher> {
     );
   }
 
-  void _showHandbook() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Hướng dẫn: Phân Loại Rác'),
-        content: const Text(
-            'Kéo và thả các vật phẩm vào đúng thùng rác tương ứng:\n\n'
-                '• Thùng Hữu cơ: Dành cho rác dễ phân hủy như thức ăn thừa, vỏ trái cây, lá cây...\n\n'
-                '• Thùng Vô cơ: Dành cho các loại rác khó phân hủy như chai nhựa, túi nylon, kim loại, pin...'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Đã hiểu'),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _restartGame() async {
     await GameProgressService().clear(widget.treId, _gameId);
     if (!mounted) return;
@@ -145,7 +126,6 @@ class _RecycleSortGameLauncherState extends State<RecycleSortGameLauncher> {
 
     return GameScreenWrapper(
       gameName: _gameName,
-      // SỬA: Cập nhật các callback mới
       onFinishAndExit: () {
         _playScreenKey.currentState?.finishGame();
       },
@@ -153,7 +133,14 @@ class _RecycleSortGameLauncherState extends State<RecycleSortGameLauncher> {
         _playScreenKey.currentState?.outToHome();
       },
       onRestart: _restartGame,
-      onHandbook: _showHandbook,
+      // CẬP NHẬT: Truyền nội dung Sổ tay
+      handbookContent: const Text(
+        'Kéo và thả các vật phẩm vào đúng thùng rác tương ứng:\n\n'
+            '• Thùng Hữu cơ: Dành cho rác dễ phân hủy như thức ăn thừa, vỏ trái cây, lá cây...\n\n'
+            '• Thùng Vô cơ: Dành cho các loại rác khó phân hủy như chai nhựa, túi nylon, kim loại, pin...',
+        textAlign: TextAlign.center,
+        style: TextStyle(color: Colors.white70, fontSize: 16.0),
+      ),
       builder: (context, isPaused) {
         return RecycleSortPlayScreen(
           key: _playScreenKey,

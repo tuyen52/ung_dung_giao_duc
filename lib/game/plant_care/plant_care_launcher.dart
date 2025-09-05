@@ -30,15 +30,13 @@ class PlantCareGameLauncher extends StatefulWidget {
   });
 
   @override
-  State<PlantCareGameLauncher> createState() =>
-      _PlantCareGameLauncherState();
+  State<PlantCareGameLauncher> createState() => _PlantCareGameLauncherState();
 }
 
 class _PlantCareGameLauncherState extends State<PlantCareGameLauncher> {
   static const String _gameId = 'plant_care';
   static const String _gameName = 'Chăm Sóc Cây Trồng';
 
-  // SỬA: Sử dụng đúng tên lớp State public
   final GlobalKey<PlantCarePlayScreenState> _playScreenKey = GlobalKey();
 
   int _mapDifficulty(GameDifficulty d) => switch (d) {
@@ -76,36 +74,6 @@ class _PlantCareGameLauncherState extends State<PlantCareGameLauncher> {
     );
   }
 
-  void _showHandbook() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Sổ Tay Chăm Sóc'),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: plantCareTools
-                .map(
-                  (tool) => Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: Text(
-                    '• Khi cây "${plantIssueLabels[tool.fixes]}", hãy dùng "${tool.label}".'),
-              ),
-            )
-                .toList(),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Đã hiểu'),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _restartGame() {
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
@@ -120,7 +88,8 @@ class _PlantCareGameLauncherState extends State<PlantCareGameLauncher> {
 
   @override
   Widget build(BuildContext context) {
-    final Game game = PlantCareGame(difficulty: _mapDifficulty(widget.difficulty));
+    final Game game =
+    PlantCareGame(difficulty: _mapDifficulty(widget.difficulty));
 
     return GameScreenWrapper(
       gameName: _gameName,
@@ -133,13 +102,31 @@ class _PlantCareGameLauncherState extends State<PlantCareGameLauncher> {
         }
       },
       onRestart: _restartGame,
-      onHandbook: _showHandbook,
+      // CẬP NHẬT: Truyền nội dung Sổ tay
+      handbookContent: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: plantCareTools
+              .map(
+                (tool) => Padding(
+              padding: const EdgeInsets.only(bottom: 8.0),
+              child: Text(
+                '• Khi cây "${plantIssueLabels[tool.fixes]}", hãy dùng "${tool.label}".',
+                style:
+                const TextStyle(color: Colors.white70, fontSize: 16.0),
+              ),
+            ),
+          )
+              .toList(),
+        ),
+      ),
       builder: (context, isPaused) {
         return PlantCarePlayScreen(
           key: _playScreenKey,
           game: game,
-          onFinish: (c, w) =>
-              WidgetsBinding.instance.addPostFrameCallback((_) => _finishAndSave(c, w)),
+          onFinish: (c, w) => WidgetsBinding.instance
+              .addPostFrameCallback((_) => _finishAndSave(c, w)),
         );
       },
     );

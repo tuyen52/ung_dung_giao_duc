@@ -93,7 +93,6 @@ class TrafficSafetyPlayScreenState extends State<TrafficSafetyPlayScreen> {
     super.dispose();
   }
 
-  // THÊM: Hàm này để launcher có thể gọi khi người dùng muốn "Thoát & Tổng kết"
   Future<void> finishGame() async {
     await _finish();
   }
@@ -156,7 +155,6 @@ class TrafficSafetyPlayScreenState extends State<TrafficSafetyPlayScreen> {
     widget.onFinish(_correct, _wrong);
   }
 
-  // ... (Toàn bộ các hàm xử lý logic và build UI còn lại giữ nguyên không thay đổi) ...
   void _handleAnswer(int selectedIndex) {
     if (_selectedOption != null) return;
     final question = _deck[_index];
@@ -262,7 +260,7 @@ class TrafficSafetyPlayScreenState extends State<TrafficSafetyPlayScreen> {
   Widget build(BuildContext context) {
     if (_index >= _deck.length) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _finish());
-      return const Center(child: CircularProgressIndicator());
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     final question = _deck[_index];
@@ -270,128 +268,147 @@ class TrafficSafetyPlayScreenState extends State<TrafficSafetyPlayScreen> {
     final difficultyLabel = switch (widget.game.difficulty) { 1 => 'Dễ', 2 => 'Vừa', _ => 'Khó' };
     final screenSize = MediaQuery.of(context).size;
 
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: IgnorePointer(
-          ignoring: widget.isPaused,
-          child: Stack(
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                color: _flashCorrect ? Colors.green.withOpacity(.1) : _flashWrong ? Colors.red.withOpacity(.1) : Colors.transparent,
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    alignment: WrapAlignment.center,
-                    children: [
-                      _chip(
-                        icon: Icons.timer,
-                        label: widget.isPaused ? 'TẠM DỪNG' : '$_timeLeft giây',
-                        color: widget.isPaused ? Colors.orange : (_timeLeft <= 10 ? Colors.red : Colors.blue),
-                      ),
-                      _chip(icon: Icons.public, label: 'Xã hội', color: Colors.green),
-                      _chip(icon: Icons.school, label: difficultyLabel, color: Colors.purple),
-                      _chip(icon: Icons.flag, label: 'Câu: ${_index + 1}/$_totalRounds', color: Colors.teal),
-                      _chip(icon: Icons.stars, label: 'Điểm: $score', color: Colors.orange),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Card(
-                    elevation: 4,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    child: Padding(
-                      padding: const EdgeInsets.all(12.0),
-                      child: Column(
-                        children: [
-                          if (question.imagePath != null)
-                            Image.asset(
-                              question.imagePath!,
-                              height: 100,
-                              fit: BoxFit.contain,
+    return Scaffold(
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/traffic_background.jpg', // <-- Tên file ảnh nền
+              fit: BoxFit.cover,
+            ),
+          ),
+          Positioned.fill(
+            child: Container(
+              color: Colors.black.withOpacity(0.1),
+            ),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: IgnorePointer(
+                ignoring: widget.isPaused,
+                child: Stack(
+                  children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      color: _flashCorrect ? Colors.green.withOpacity(.1) : _flashWrong ? Colors.red.withOpacity(.1) : Colors.transparent,
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          alignment: WrapAlignment.center,
+                          children: [
+                            _chip(
+                              icon: Icons.timer,
+                              label: widget.isPaused ? 'TẠM DỪNG' : '$_timeLeft giây',
+                              color: widget.isPaused ? Colors.orange : (_timeLeft <= 10 ? Colors.red : Colors.blue),
                             ),
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              if (question.icon != null)
-                                Padding(
-                                  padding: const EdgeInsets.only(right: 8.0),
-                                  child: Text(
-                                    question.icon!,
-                                    style: const TextStyle(fontSize: 32),
+                            _chip(icon: Icons.public, label: 'Xã hội', color: Colors.green),
+                            _chip(icon: Icons.school, label: difficultyLabel, color: Colors.purple),
+                            _chip(icon: Icons.flag, label: 'Câu: ${_index + 1}/$_totalRounds', color: Colors.teal),
+                            _chip(icon: Icons.stars, label: 'Điểm: $score', color: Colors.orange),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Card(
+                          elevation: 4,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12.0),
+                            child: Column(
+                              children: [
+                                if (question.imagePath != null)
+                                  Image.asset(
+                                    question.imagePath!,
+                                    height: 100,
+                                    fit: BoxFit.contain,
                                   ),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    if (question.icon != null)
+                                      Padding(
+                                        padding: const EdgeInsets.only(right: 8.0),
+                                        child: Text(
+                                          question.icon!,
+                                          style: const TextStyle(fontSize: 32),
+                                        ),
+                                      ),
+                                    Expanded(
+                                      child: Text(
+                                        question.situation,
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                          height: 1.4,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          flex: 3,
+                          child: _buildQuestionWidget(question, screenSize),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8.0),
+                          child: Row(
+                            children: [
                               Expanded(
-                                child: Text(
-                                  question.situation,
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    height: 1.4,
+                                child: OutlinedButton(
+                                  onPressed: (widget.isPaused || _selectedOption != null) ? null : _skip,
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: Colors.white,
+                                    side: const BorderSide(color: Colors.white70),
+                                    minimumSize: Size(screenSize.width, screenSize.height * 0.06),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  ),
+                                  child: const Text('Câu mới', style: TextStyle(fontSize: 14)),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: FilledButton.icon(
+                                  icon: const Icon(Icons.flag, size: 16),
+                                  label: const Text('Kết thúc', style: TextStyle(fontSize: 14)),
+                                  onPressed: _finish,
+                                  style: FilledButton.styleFrom(
+                                    minimumSize: Size(screenSize.width, screenSize.height * 0.06),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                   ),
                                 ),
                               ),
                             ],
                           ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    flex: 3,
-                    child: _buildQuestionWidget(question, screenSize),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8.0),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: (widget.isPaused || _selectedOption != null) ? null : _skip,
-                            style: OutlinedButton.styleFrom(
-                              minimumSize: Size(screenSize.width, screenSize.height * 0.06),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
-                            child: const Text('Câu mới', style: TextStyle(fontSize: 14)),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: FilledButton.icon(
-                            icon: const Icon(Icons.flag, size: 16),
-                            label: const Text('Kết thúc', style: TextStyle(fontSize: 14)),
-                            onPressed: _finish,
-                            style: FilledButton.styleFrom(
-                              minimumSize: Size(screenSize.width, screenSize.height * 0.06),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
-                          ),
                         ),
                       ],
                     ),
-                  ),
-                ],
-              ),
-              if (_flashCorrect || _flashWrong)
-                Center(
-                  child: AnimatedScale(
-                    duration: const Duration(milliseconds: 150),
-                    scale: 1.0,
-                    child: Icon(
-                      _flashCorrect ? Icons.check_circle : Icons.cancel,
-                      size: 80,
-                      color: _flashCorrect ? Colors.green : Colors.red,
-                    ),
-                  ),
+                    if (_flashCorrect || _flashWrong)
+                      Center(
+                        child: AnimatedScale(
+                          duration: const Duration(milliseconds: 150),
+                          scale: 1.0,
+                          child: Icon(
+                            _flashCorrect ? Icons.check_circle : Icons.cancel,
+                            size: 80,
+                            color: _flashCorrect ? Colors.green : Colors.red,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
-            ],
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -463,7 +480,12 @@ class TrafficSafetyPlayScreenState extends State<TrafficSafetyPlayScreen> {
           children: [
             const Text(
               'Kéo và thả các lựa chọn theo thứ tự đúng:',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Colors.white, // Thêm màu để dễ đọc
+                shadows: [Shadow(blurRadius: 2, color: Colors.black)],
+              ),
             ),
             const SizedBox(height: 8),
             Wrap(
@@ -483,6 +505,7 @@ class TrafficSafetyPlayScreenState extends State<TrafficSafetyPlayScreen> {
                 return Draggable<int>(
                   data: i,
                   feedback: Material(
+                    color: Colors.transparent, // Nền trong suốt
                     child: Chip(
                       label: Text(question.options[i]),
                       backgroundColor: Colors.blue[300],
@@ -546,9 +569,9 @@ class TrafficSafetyPlayScreenState extends State<TrafficSafetyPlayScreen> {
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: BoxDecoration(
-          color: color.withOpacity(.10),
+          color: color.withOpacity(.25), // Tăng độ đậm của màu nền chip
           borderRadius: BorderRadius.circular(32),
-          border: Border.all(color: color.withOpacity(.35)),
+          border: Border.all(color: color.withOpacity(.5)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,

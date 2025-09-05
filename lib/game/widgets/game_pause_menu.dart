@@ -1,101 +1,121 @@
-// lib/game/widgets/game_pause_menu.dart
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 
+/// Menu tạm dừng: đáp ứng, có Semantics, nút full-width.
 class GamePauseMenu extends StatelessWidget {
-  final VoidCallback onResumed;
-  // THÊM: Callback cho chức năng Chơi lại
-  final VoidCallback onRestart;
-  final VoidCallback onSettings;
-  // THÊM: Callback cho Hướng dẫn (có thể null)
-  final VoidCallback? onHandbook;
-  final VoidCallback onExit;
-
   const GamePauseMenu({
     super.key,
     required this.onResumed,
-    required this.onRestart, // THÊM
-    required this.onSettings,
-    this.onHandbook, // THÊM
+    required this.onRestart,
+    this.onSettings,
+    this.onHandbook,
     required this.onExit,
   });
 
+  final VoidCallback onResumed;
+  final VoidCallback onRestart;
+  final VoidCallback? onSettings;
+  final VoidCallback? onHandbook;
+  final VoidCallback onExit;
+
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final maxW = math.min(360.0, size.width * 0.9);
+
     return BackdropFilter(
       filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-      child: Container(
-        color: Colors.black.withOpacity(0.7),
-        child: Center(
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text(
-                  'GAME TẠM DỪNG',
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    letterSpacing: 1.5,
-                    shadows: [
-                      Shadow(
-                        offset: Offset(2, 2),
-                        blurRadius: 3.0,
-                        color: Color.fromARGB(150, 0, 0, 0),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: maxW),
+          child: Material(
+            color: Colors.black.withOpacity(0.7),
+            borderRadius: BorderRadius.circular(24),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: FocusTraversalGroup(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Semantics(
+                      header: true,
+                      child: Text(
+                        'GAME TẠM DỪNG',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 40),
-
-                // Nút Tiếp tục
-                _buildMenuItem(
-                  icon: Icons.play_arrow_rounded,
-                  label: 'TIẾP TỤC',
-                  onPressed: onResumed,
-                  color: Colors.green,
-                ),
-                const SizedBox(height: 20),
-
-                // THÊM: Nút Chơi lại
-                _buildMenuItem(
-                  icon: Icons.replay_rounded,
-                  label: 'CHƠI LẠI',
-                  onPressed: onRestart,
-                  color: Colors.orange,
-                ),
-                const SizedBox(height: 20),
-
-                // Nút Cài đặt
-                _buildMenuItem(
-                  icon: Icons.settings_rounded,
-                  label: 'CÀI ĐẶT',
-                  onPressed: onSettings,
-                  color: Colors.blueGrey,
-                ),
-                const SizedBox(height: 20),
-
-                // THÊM: Nút Hướng dẫn (chỉ hiển thị nếu có)
-                if (onHandbook != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 20.0),
-                    child: _buildMenuItem(
-                      icon: Icons.help_outline_rounded,
-                      label: 'HƯỚNG DẪN',
-                      onPressed: onHandbook!,
-                      color: Colors.teal,
                     ),
-                  ),
+                    const SizedBox(height: 20),
 
-                // Nút Thoát
-                _buildMenuItem(
-                  icon: Icons.exit_to_app_rounded,
-                  label: 'THOÁT',
-                  onPressed: onExit,
-                  color: Colors.redAccent,
+                    // TIẾP TỤC
+                    _semanticButton(
+                      label: 'Tiếp tục trò chơi',
+                      child: _menuButton(
+                        context,
+                        icon: Icons.play_arrow_rounded,
+                        text: 'TIẾP TỤC',
+                        onPressed: onResumed,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // CHƠI LẠI
+                    _semanticButton(
+                      label: 'Chơi lại từ đầu',
+                      child: _menuButton(
+                        context,
+                        icon: Icons.replay_rounded,
+                        text: 'CHƠI LẠI',
+                        onPressed: onRestart,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // CÀI ĐẶT (nếu có)
+                    if (onSettings != null) ...[
+                      _semanticButton(
+                        label: 'Cài đặt âm thanh/tuỳ chọn',
+                        child: _menuButton(
+                          context,
+                          icon: Icons.settings_rounded,
+                          text: 'CÀI ĐẶT',
+                          onPressed: onSettings,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+
+                    // HƯỚNG DẪN (nếu có)
+                    if (onHandbook != null) ...[
+                      _semanticButton(
+                        label: 'Xem hướng dẫn',
+                        child: _menuButton(
+                          context,
+                          icon: Icons.menu_book_rounded,
+                          text: 'HƯỚNG DẪN',
+                          onPressed: onHandbook,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+
+                    // THOÁT
+                    _semanticButton(
+                      label: 'Thoát trò chơi',
+                      child: _menuButton(
+                        context,
+                        icon: Icons.exit_to_app_rounded,
+                        text: 'THOÁT',
+                        onPressed: onExit,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
@@ -103,34 +123,33 @@ class GamePauseMenu extends StatelessWidget {
     );
   }
 
-  Widget _buildMenuItem({
-    required IconData icon,
-    required String label,
-    required VoidCallback onPressed,
-    required Color color,
-  }) {
+  Widget _semanticButton({required String label, required Widget child}) {
+    return Semantics(button: true, label: label, child: child);
+  }
+
+  Widget _menuButton(
+      BuildContext context, {
+        required IconData icon,
+        required String text,
+        required VoidCallback? onPressed,
+      }) {
     return SizedBox(
-      width: 250,
+      width: double.infinity,
+      height: 48,
       child: ElevatedButton.icon(
-        onPressed: onPressed,
-        icon: Icon(icon, size: 28, color: Colors.white),
+        icon: Icon(icon),
         label: Text(
-          label,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
+          text,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
           ),
         ),
+        onPressed: onPressed,
         style: ElevatedButton.styleFrom(
-          backgroundColor: color.withOpacity(0.8),
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(30),
-            side: BorderSide(color: color, width: 2),
+            borderRadius: BorderRadius.circular(14),
           ),
-          elevation: 5,
         ),
       ),
     );

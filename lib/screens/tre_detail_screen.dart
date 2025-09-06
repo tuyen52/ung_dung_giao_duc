@@ -3,9 +3,9 @@ import '../models/tre.dart';
 import '../services/tre_service.dart';
 import 'reward_screen.dart';
 
-// game
-import 'package:mobileapp/game/core/types.dart';
-import 'package:mobileapp/game/recycle_sort/recycle_sort_launcher.dart';
+// game (vẫn có thể giữ import nếu bạn muốn dùng lại hàm _startGame ở đâu đó)
+// import 'package:mobileapp/game/core/types.dart';
+// import 'package:mobileapp/game/recycle_sort/recycle_sort_launcher.dart';
 
 class TreDetailScreen extends StatefulWidget {
   final Tre tre;
@@ -78,6 +78,9 @@ class _TreDetailScreenState extends State<TreDetailScreen> {
     }
   }
 
+  // Hàm này giờ sẽ không được dùng đến trong màn hình này nữa,
+  // nhưng bạn có thể giữ lại để dùng ở nơi khác hoặc xóa đi nếu không cần.
+  /*
   void _startGame(GameDifficulty diff) {
     Navigator.push(
       context,
@@ -90,6 +93,7 @@ class _TreDetailScreenState extends State<TreDetailScreen> {
       ),
     );
   }
+  */
 
   @override
   Widget build(BuildContext context) {
@@ -124,35 +128,16 @@ class _TreDetailScreenState extends State<TreDetailScreen> {
           const SizedBox(height: 12),
           FilledButton(
             onPressed: _saving ? null : _save,
-            child: _saving ? const CircularProgressIndicator() : const Text('Lưu thay đổi'),
+            style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+            child: _saving
+                ? const SizedBox(
+              height: 24,
+              width: 24,
+              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
+            )
+                : const Text('Lưu thay đổi'),
           ),
-          const SizedBox(height: 24),
-          const Text('Chơi game phân loại rác', style: TextStyle(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => _startGame(GameDifficulty.easy),
-                  child: const Text('Dễ'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => _startGame(GameDifficulty.medium),
-                  child: const Text('Vừa'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: FilledButton(
-                  onPressed: () => _startGame(GameDifficulty.hard),
-                  child: const Text('Khó'),
-                ),
-              ),
-            ],
-          ),
+          // PHẦN GIAO DIỆN CHƠI GAME ĐÃ ĐƯỢC XÓA BỎ TẠI ĐÂY
         ],
       ),
     );

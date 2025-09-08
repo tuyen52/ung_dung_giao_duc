@@ -1,15 +1,13 @@
-// lib/game/plant_care/plant_care_play_screen.dart
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:mobileapp/game/core/game.dart';
 import 'package:mobileapp/game/core/types.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:audioplayers/audioplayers.dart';
+// import 'package:audioplayers/audioplayers.dart'; // ĐÃ XÓA
 import 'data/plant_care_data.dart';
 
-// ... (Các enum và class Plant, CareTool giữ nguyên)
-enum AnimationTrigger { idle, correct, incorrect }
+enum AnimationTrigger { idle, healthy, unhealthy }
 enum PlantStage {
   hatGiong(0.4),
   cayCon(0.3),
@@ -29,17 +27,33 @@ class CareTool {
   final String explanation;
   const CareTool(this.label, this.icon, this.type, this.fixes, this.explanation);
 }
+
+// MODIFIED: Plant class now includes type and species name
 class Plant {
-  final String label;
-  final PlantStage stage;
-  final PlantIssue issue;
+  final PlantType type;
+  String speciesName;
+  String label;
+  PlantStage stage;
+  double waterLevel;
+  double lightLevel;
+  double nutrientLevel;
   double health;
   bool isCompleted;
   AnimationTrigger animationTrigger = AnimationTrigger.idle;
   int animationCounter = 0;
-  Plant(this.label, this.stage, this.issue, this.health, this.isCompleted);
-}
 
+  Plant({
+    required this.type,
+    required this.speciesName,
+    required this.label,
+    required this.stage,
+    required this.waterLevel,
+    required this.lightLevel,
+    required this.nutrientLevel,
+    required this.health,
+    required this.isCompleted,
+  });
+}
 
 class PlantCarePlayScreen extends StatefulWidget {
   final Game game;
@@ -48,184 +62,132 @@ class PlantCarePlayScreen extends StatefulWidget {
   const PlantCarePlayScreen({super.key, required this.game, required this.onFinish});
 
   @override
-  // SỬA: Cập nhật hàm createState để trả về lớp State public
   State<PlantCarePlayScreen> createState() => PlantCarePlayScreenState();
 }
 
-// SỬA: Đổi tên lớp State thành public (bỏ dấu `_`)
 class PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
   final _rnd = Random();
   final _plants = <Plant>[];
   late Map<CareToolType, int> _resources;
+  int correctActions = 0;
+  int wrongActions = 0;
+  int _currentDay = 1;
+  final int _totalDays = 3;
+  // final AudioPlayer _audioPlayer = AudioPlayer(); // ĐÃ XÓA
+  int? _selectedPlantIndex;
 
-  // Các biến này vẫn là public để launcher có thể truy cập
-  int correctAnswers = 0;
-  int wrongAnswers = 0;
-
-  int _completedRounds = 0;
-  final int _totalRounds = 3;
-
-  final AudioPlayer _audioPlayer = AudioPlayer();
-
-  // ... (Toàn bộ các hàm bên trong lớp State giữ nguyên không thay đổi)
   @override
   void initState() {
     super.initState();
     FirebaseAuth.instance.setLanguageCode('en');
-    _newRound(isFirstTime: true);
+    _initializeGame();
   }
 
-  void _playSound(String soundFile) {
-    _audioPlayer.play(AssetSource('sfx/$soundFile'));
-  }
+  // void _playSound(String soundFile) { // ĐÃ XÓA
+  //   _audioPlayer.play(AssetSource('sfx/$soundFile'));
+  // }
 
   @override
   void dispose() {
-    _audioPlayer.dispose();
+    // _audioPlayer.dispose(); // ĐÃ XÓA
     super.dispose();
   }
 
-  void _newRound({bool isFirstTime = false}) {
+  // MODIFIED: Initialize a diverse garden of plants
+  void _initializeGame() {
     _plants.clear();
-    final stageToIssues = plantStageRules;
-
     final stages = PlantStage.values;
-    for (int i = 0; i < 4; i++) {
-      final stage = stages[_rnd.nextInt(stages.length)];
-      final issues = stageToIssues[stage]!;
-      final issue = issues[_rnd.nextInt(issues.length)];
-      _plants.add(Plant(plantStageCreativeNames[stage]!, stage, issue, 100.0, false));
+    // Create a list of different plant types to spawn
+    final plantTypesToSpawn = [PlantType.normal, PlantType.cactus, PlantType.fern, PlantType.normal];
+    plantTypesToSpawn.shuffle(_rnd); // Randomize plant positions
+
+    for (final type in plantTypesToSpawn) {
+      final species = plantSpeciesData[type]!;
+      final stage = stages[0];
+      _plants.add(Plant(
+        type: type,
+        speciesName: species.name,
+        label: plantStageCreativeNames[stage]!,
+        stage: stage,
+        waterLevel: 50.0,
+        lightLevel: 50.0,
+        nutrientLevel: 50.0,
+        health: 100.0,
+        isCompleted: false,
+      ));
     }
 
-    if (isFirstTime) {
-      _resources = {
-        CareToolType.nuoc: 5 + widget.game.difficulty,
-        CareToolType.phanBon: 3 + widget.game.difficulty,
-        CareToolType.thuocTruSau: 2 + widget.game.difficulty,
-        CareToolType.catTia: 2 + widget.game.difficulty,
-        CareToolType.anhSang: 3 + widget.game.difficulty,
-      };
-    }
-
+    _resources = {
+      CareToolType.nuoc: 20 + widget.game.difficulty * 2,
+      CareToolType.anhSang: 15 + widget.game.difficulty,
+      CareToolType.phanBon: 12 + widget.game.difficulty,
+      CareToolType.thuocTruSau: 10 + widget.game.difficulty,
+      CareToolType.catTia: 10 + widget.game.difficulty,
+    };
+    _selectedPlantIndex = null;
     setState(() {});
   }
 
-  void _triggerSpecialEvent(Plant plant) {
-    if (_rnd.nextDouble() > plant.stage.eventProbability) return;
-
-    switch (plant.stage) {
-      case PlantStage.hatGiong:
-        _showWateringMiniGame(plant);
-        break;
-      case PlantStage.cayCon:
-        _showBirdChaseEvent(plant);
-        break;
-      case PlantStage.truongThanh:
-        _showPruningMiniGame(plant);
-        break;
-      case PlantStage.raHoa:
-        _showFlowerProtectionEvent(plant);
-        break;
-    }
-  }
-
-  void _showWateringMiniGame(Plant plant) {
-    int taps = 0;
-    const requiredTaps = 5;
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setStateDialog) => AlertDialog(
-          title: const Text('Mini-Game: Tưới Nước Liên Tục'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Nhấn nhanh để tưới đủ nước cho hạt giống!'),
-              const SizedBox(height: 10),
-              Text('Tiến độ: $taps/$requiredTaps'),
-              LinearProgressIndicator(value: taps / requiredTaps, color: Colors.blue),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                setStateDialog(() {
-                  taps++;
-                });
-                if (taps >= requiredTaps) {
-                  Navigator.pop(context);
-                  setState(() {
-                    plant.health = 100.0;
-                    correctAnswers += 10;
-                    _resources[CareToolType.nuoc] = (_resources[CareToolType.nuoc]! - 1).clamp(0, 100);
-                  });
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Tuyệt! Hạt giống được tưới đủ nước! (+10 điểm)'),
-                      backgroundColor: Colors.green,
-                      duration: Duration(milliseconds: 1500),
-                    ),
-                  );
-                }
-              },
-              child: const Text('Tưới'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                setState(() {
-                  plant.health -= 20;
-                  wrongAnswers++;
-                });
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Không tưới đủ nước! Hạt giống bị tổn thương.'),
-                    backgroundColor: Colors.red,
-                    duration: Duration(milliseconds: 1500),
-                  ),
-                );
-              },
-              child: const Text('Hủy'),
-            ),
-          ],
-        ),
+  void _selectPlant(int index) {
+    setState(() {
+      _selectedPlantIndex = index;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Đã chọn cây "${_plants[index].speciesName}"!'),
+        backgroundColor: Colors.blue,
+        duration: const Duration(seconds: 1),
       ),
     );
   }
 
-  void _showBirdChaseEvent(Plant plant) {
+  void _triggerRandomEvent(Plant plant) {
+    if (_rnd.nextDouble() > plant.stage.eventProbability) return;
+
+    final possibleIssues = plantStageRules[plant.stage];
+    if (possibleIssues == null || possibleIssues.isEmpty) return;
+
+    final issue = possibleIssues[_rnd.nextInt(possibleIssues.length)];
+
+    _showPlantIssueEvent(plant, issue);
+  }
+
+  void _showPlantIssueEvent(Plant plant, PlantIssue issue) {
+    final issueLabel = plantIssueLabels[issue] ?? "Vấn đề không xác định";
+    final correctTool = plantCareTools.firstWhere((tool) => tool.fixes == issue);
+
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text('Sự Kiện: Xua Đuổi Chim'),
-        content: const Text('Cây con bị chim tấn công! Chọn công cụ để xua đuổi.'),
+        title: Text('Sự kiện: $issueLabel'),
+        content: Text('Cây ${plant.speciesName} đang gặp vấn đề "$issueLabel". Chọn công cụ phù hợp để cứu cây. (Gợi ý: ${correctTool.label})'),
         actions: plantCareTools.map((tool) => TextButton(
           onPressed: () {
             Navigator.pop(context);
-            if (tool.type == CareToolType.thuocTruSau && _resources[tool.type]! > 0) {
+            if (tool.type == correctTool.type && _resources[tool.type]! > 0) {
               setState(() {
-                plant.health = 100.0;
-                correctAnswers += 15;
+                plant.health = (plant.health + 20).clamp(0, 100);
+                correctActions += 5;
                 _resources[tool.type] = (_resources[tool.type]! - 1).clamp(0, 100);
               });
+              // _playSound('correct.mp3'); // ĐÃ XÓA
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Tuyệt! Cây con được bảo vệ! (+15 điểm)'),
+                SnackBar(
+                  content: Text('Tuyệt vời! Cây đã được cứu khỏi $issueLabel! (+5 điểm)'),
                   backgroundColor: Colors.green,
-                  duration: Duration(milliseconds: 1500),
                 ),
               );
             } else {
               setState(() {
-                plant.health -= 20;
-                wrongAnswers++;
+                plant.health = (plant.health - 20).clamp(0, 100);
+                wrongActions++;
               });
+              // _playSound('incorrect.mp3'); // ĐÃ XÓA
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Sai công cụ! Cây con bị tổn thương.'),
+                SnackBar(
+                  content: Text('Sai công cụ! Cây bị ảnh hưởng bởi $issueLabel.'),
                   backgroundColor: Colors.red,
-                  duration: Duration(milliseconds: 1500),
                 ),
               );
             }
@@ -236,187 +198,149 @@ class PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
     );
   }
 
-  void _showPruningMiniGame(Plant plant) {
-    final correctBranch = _rnd.nextInt(3);
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Mini-Game: Tỉa Cành'),
-        content: const Text('Chọn nhánh cần tỉa để cây phát triển tốt hơn.'),
-        actions: List.generate(
-          3,
-              (index) => TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              if (index == correctBranch && _resources[CareToolType.catTia]! > 0) {
-                setState(() {
-                  plant.health = 100.0;
-                  correctAnswers += 20;
-                  _resources[CareToolType.catTia] = (_resources[CareToolType.catTia]! - 1).clamp(0, 100);
-                });
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Tỉa đúng nhánh! Cây khỏe mạnh! (+20 điểm)'),
-                    backgroundColor: Colors.green,
-                    duration: Duration(milliseconds: 1500),
-                  ),
-                );
-              } else {
-                setState(() {
-                  plant.health -= 20;
-                  wrongAnswers++;
-                });
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Tỉa sai nhánh! Cây bị tổn thương.'),
-                    backgroundColor: Colors.red,
-                    duration: Duration(milliseconds: 1500),
-                  ),
-                );
-              }
-            },
-            child: Text('Nhánh ${index + 1}'),
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showFlowerProtectionEvent(Plant plant) {
-    int taps = 0;
-    const requiredTaps = 3;
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setStateDialog) => AlertDialog(
-          title: const Text('Sự Kiện: Bảo Vệ Hoa'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Nhấn nhanh để đuổi côn trùng khỏi hoa!'),
-              const SizedBox(height: 10),
-              Text('Tiến độ: $taps/$requiredTaps'),
-              LinearProgressIndicator(value: taps / requiredTaps, color: Colors.blue),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                setStateDialog(() {
-                  taps++;
-                });
-                if (taps >= requiredTaps) {
-                  Navigator.pop(context);
-                  setState(() {
-                    plant.health = 100.0;
-                    correctAnswers += 30;
-                    _resources[CareToolType.thuocTruSau] = (_resources[CareToolType.thuocTruSau]! - 1).clamp(0, 100);
-                  });
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Tuyệt! Hoa được bảo vệ! (+30 điểm)'),
-                      backgroundColor: Colors.green,
-                      duration: Duration(milliseconds: 1500),
-                    ),
-                  );
-                }
-              },
-              child: const Text('Đuổi Côn Trùng'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                setState(() {
-                  plant.health -= 20;
-                  wrongAnswers++;
-                });
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Không bảo vệ được hoa! Hoa bị tổn thương.'),
-                    backgroundColor: Colors.red,
-                    duration: Duration(milliseconds: 1500),
-                  ),
-                );
-              },
-              child: const Text('Hủy'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _onCorrectAnswer(CareTool correctTool, CareToolType selectedTool) {
-    correctAnswers++;
-    _resources[selectedTool] = (_resources[selectedTool]! - 1).clamp(0, 100);
-
-    if (_plants.isEmpty) return;
-    final currentPlant = _plants.firstWhere((p) => !p.isCompleted, orElse: () => _plants[0]);
-    _triggerSpecialEvent(currentPlant);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(correctTool.explanation),
-        backgroundColor: Colors.green.shade700,
-        duration: const Duration(milliseconds: 1500),
-      ),
-    );
-
-    if (_plants.every((p) => p.isCompleted)) {
-      _completedRounds++;
-      if (_completedRounds >= _totalRounds) {
-        widget.onFinish(correctAnswers, wrongAnswers);
-      } else {
-        _showRoundSummary();
-      }
-    }
-  }
-
-  void _checkAnswer(Plant plant, CareToolType selectedTool) {
-    if (plant.isCompleted) return;
-
-    final correctTool = plantCareTools.firstWhere((t) => t.fixes == plant.issue);
-    bool hasResources = _resources[selectedTool]! > 0;
-
-    if (hasResources && selectedTool == correctTool.type) {
-      _playSound('correct.mp3');
-      setState(() {
-        plant.health = 100.0;
-        plant.isCompleted = true;
-        plant.animationTrigger = AnimationTrigger.correct;
-        plant.animationCounter++;
-        _onCorrectAnswer(correctTool, selectedTool);
-      });
-    } else {
-      _playSound('incorrect.mp3');
-      setState(() {
-        wrongAnswers++;
-        plant.health = (plant.health - 34).clamp(0, 100);
-        plant.animationTrigger = AnimationTrigger.incorrect;
-        plant.animationCounter++;
-      });
+  // MODIFIED: Apply tool logic now considers the plant's species
+  void _applyTool(Plant plant, CareToolType toolType) {
+    if (_resources[toolType]! <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(hasResources ? 'Sai rồi! Cây không cần thứ này.' : 'Đã hết tài nguyên này!'),
-          backgroundColor: Colors.red.shade700,
-          duration: const Duration(milliseconds: 1500),
+          content: Text('Hết ${plantCareTools.firstWhere((t) => t.type == toolType).label}!'),
+          backgroundColor: Colors.orange,
         ),
       );
+      return;
     }
+
+    final tool = plantCareTools.firstWhere((t) => t.type == toolType);
+    final species = plantSpeciesData[plant.type]!;
+
+    setState(() {
+      _resources[toolType] = (_resources[toolType]! - 1).clamp(0, 100);
+
+      // Handle special cases for different species
+      switch (toolType) {
+        case CareToolType.nuoc:
+          if (plant.waterLevel > species.waterTolerance) {
+            plant.health = (plant.health - 30).clamp(0, 100);
+            wrongActions++;
+            // _playSound('incorrect.mp3'); // ĐÃ XÓA
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text('${species.name} không ưa nhiều nước! Cây bị úng nước.'),
+              backgroundColor: Colors.red,
+            ));
+            return; // Exit without adding more water
+          }
+          plant.waterLevel = (plant.waterLevel + 30).clamp(0, 100);
+          break;
+        case CareToolType.anhSang:
+          if (plant.lightLevel > species.lightTolerance) {
+            plant.health = (plant.health - 30).clamp(0, 100);
+            wrongActions++;
+            // _playSound('incorrect.mp3'); // ĐÃ XÓA
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text('${species.name} không thích nắng gắt! Cây bị cháy nắng.'),
+              backgroundColor: Colors.red,
+            ));
+            return; // Exit without adding more light
+          }
+          plant.lightLevel = (plant.lightLevel + 30).clamp(0, 100);
+          break;
+        case CareToolType.phanBon:
+          plant.nutrientLevel = (plant.nutrientLevel + 30).clamp(0, 100);
+          break;
+        case CareToolType.thuocTruSau:
+          plant.health = (plant.health + 20).clamp(0, 100);
+          break;
+        case CareToolType.catTia:
+          if (plant.stage == PlantStage.truongThanh || plant.stage == PlantStage.raHoa) {
+            plant.health = (plant.health + 20).clamp(0, 100);
+          } else {
+            plant.health = (plant.health - 20).clamp(0, 100);
+            wrongActions++;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Tỉa cành không phù hợp với ${plantStageDescriptiveNames[plant.stage]}!'),
+                backgroundColor: Colors.red,
+              ),
+            );
+            return;
+          }
+          break;
+      }
+
+      plant.health = ((plant.waterLevel + plant.lightLevel + plant.nutrientLevel) / 3).clamp(0, 100);
+      correctActions++;
+      // _playSound('correct.mp3'); // ĐÃ XÓA
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Đã sử dụng ${tool.label} cho ${plant.speciesName}! ${tool.explanation}'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      if (plant.health >= 80 && plant.stage != PlantStage.raHoa) {
+        plant.stage = PlantStage.values[plant.stage.index + 1];
+        plant.label = plantStageCreativeNames[plant.stage]!;
+        plant.animationTrigger = AnimationTrigger.healthy;
+        plant.animationCounter++;
+      } else if (plant.health < 30) {
+        plant.animationTrigger = AnimationTrigger.unhealthy;
+        plant.animationCounter++;
+      }
+    });
+
+    _triggerRandomEvent(plant);
   }
 
-  void _showRoundSummary() {
+  // MODIFIED: Resource decay at the end of the day is now based on species needs
+  void _endDay() {
+    setState(() {
+      for (int i = 0; i < _plants.length; i++) {
+        var plant = _plants[i];
+        final species = plantSpeciesData[plant.type]!;
+
+        if (!plant.isCompleted) {
+          // Apply species-specific needs multipliers
+          plant.waterLevel = (plant.waterLevel - (20 * species.waterNeed)).clamp(0, 100);
+          plant.lightLevel = (plant.lightLevel - (20 * species.lightNeed)).clamp(0, 100);
+          plant.nutrientLevel = (plant.nutrientLevel - 15).clamp(0, 100); // Nutrient need is same for all for now
+
+          plant.health = ((plant.waterLevel + plant.lightLevel + plant.nutrientLevel) / 3).clamp(0, 100);
+
+          if (plant.health >= 80 && plant.stage != PlantStage.raHoa) {
+            plant.stage = PlantStage.values[plant.stage.index + 1];
+            plant.label = plantStageCreativeNames[plant.stage]!;
+            plant.animationTrigger = AnimationTrigger.healthy;
+            plant.animationCounter++;
+          } else if (plant.health < 30) {
+            plant.animationTrigger = AnimationTrigger.unhealthy;
+            plant.animationCounter++;
+          }
+          if (plant.stage == PlantStage.raHoa && plant.health >= 80) {
+            plant.isCompleted = true;
+          }
+        }
+      }
+      _currentDay++;
+      _selectedPlantIndex = null;
+      if (_currentDay > _totalDays) {
+        widget.onFinish(correctActions, wrongActions);
+      } else {
+        _showDaySummary();
+      }
+    });
+  }
+
+  void _showDaySummary() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Hoàn thành vòng $_completedRounds!'),
-        content: const Text('Bạn đã chăm sóc thành công cả 4 cây. Hãy tiếp tục vòng tiếp theo nhé!'),
+        title: Text('Kết thúc ngày ${_currentDay -1}'),
+        content: Text('Bắt đầu ngày mới! Tiếp tục chăm sóc để cây ra hoa!'),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              _newRound();
+              setState(() {});
             },
             child: const Text('Tiếp tục'),
           ),
@@ -434,14 +358,21 @@ class PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
-            children: plantCareTools
-                .map(
-                  (tool) => Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: Text('• Khi cây "${plantIssueLabels[tool.fixes]}", hãy dùng "${tool.label}".'),
+            children: [
+              const Text('Hướng dẫn chăm sóc cây:'),
+              ...plantCareTools.map(
+                    (tool) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8.0),
+                  child: Text('• ${tool.label}: ${tool.explanation}'),
+                ),
               ),
-            )
-                .toList(),
+              const Text('\nLưu ý đặc biệt:'),
+              const Text('• Xương rồng cần nhiều sáng, không ưa nhiều nước.'),
+              const Text('• Dương xỉ cần nhiều nước, không thích nắng gắt.'),
+              const Text('\nLưu ý chung:'),
+              const Text('• Giữ nước, ánh sáng, dinh dưỡng trên 50 để cây khỏe.'),
+              const Text('• Cây đạt sức khỏe 80 sẽ phát triển lên giai đoạn tiếp theo.'),
+            ],
           ),
         ),
         actions: [
@@ -456,6 +387,9 @@ class PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    final fontSize = screenHeight * 0.04;
+
     return Scaffold(
       floatingActionButton: FloatingActionButton(
         onPressed: _showHandbook,
@@ -478,43 +412,27 @@ class PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: plantCareTools.map((tool) {
-                    final bool hasResources = _resources[tool.type]! > 0;
-                    return Draggable<CareToolType>(
-                      data: tool.type,
-                      feedback: Material(
-                        elevation: 6,
-                        color: Colors.transparent,
-                        child: Icon(
-                          tool.icon,
-                          color: Colors.white,
-                          size: 52,
-                          shadows: [
-                            Shadow(
-                              color: Colors.black.withOpacity(0.8),
-                              blurRadius: 5.0,
-                            )
-                          ],
+                    return Column(
+                      children: [
+                        IconButton(
+                          onPressed: _resources[tool.type]! > 0 && _selectedPlantIndex != null
+                              ? () {
+                            setState(() {
+                              _applyTool(_plants[_selectedPlantIndex!], tool.type);
+                            });
+                          }
+                              : null,
+                          icon: Icon(tool.icon, size: 32, color: _resources[tool.type]! > 0 ? Colors.white : Colors.grey.shade600),
                         ),
-                      ),
-                      child: ToolWidget(tool: tool, count: _resources[tool.type]!),
-                      childWhenDragging: ToolWidget(tool: tool, count: _resources[tool.type]!, isDragging: true),
-                      onDragStarted: () {
-                        if (!hasResources) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Đã hết ${tool.label}!'),
-                              backgroundColor: Colors.orange,
-                              duration: const Duration(milliseconds: 1000),
-                            ),
-                          );
-                        }
-                      },
-                      dragAnchorStrategy: (draggable, context, position) {
-                        if (!hasResources) {
-                          return const Offset(0,0);
-                        }
-                        return pointerDragAnchorStrategy(draggable, context, position);
-                      },
+                        Text(
+                          _resources[tool.type].toString(),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: _resources[tool.type]! > 0 ? Colors.white : Colors.grey.shade600,
+                            shadows: [Shadow(blurRadius: 2, color: Colors.black.withOpacity(0.5))],
+                          ),
+                        ),
+                      ],
                     );
                   }).toList(),
                 ),
@@ -523,8 +441,16 @@ class PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
             Chip(
               backgroundColor: Colors.white.withOpacity(0.8),
               avatar: const Icon(Icons.star),
-              label: Text('Vòng: ${_completedRounds + 1}/$_totalRounds'),
+              label: Text('Ngày: $_currentDay/$_totalDays'),
             ),
+            if (_selectedPlantIndex != null)
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Text(
+                  'Đang chăm sóc: ${_plants[_selectedPlantIndex!].speciesName}',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                ),
+              ),
             Expanded(
               child: GridView.builder(
                 padding: const EdgeInsets.all(12),
@@ -532,15 +458,16 @@ class PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
                   crossAxisCount: 2,
                   crossAxisSpacing: 12,
                   mainAxisSpacing: 12,
-                  childAspectRatio: 0.8,
+                  childAspectRatio: 0.7,
                 ),
                 itemCount: _plants.length,
-                itemBuilder: (_, i) => PlantCard(
-                  plant: _plants[i],
-                  onToolDropped: (plant, toolType) {
-                    _playSound('drop.mp3');
-                    _checkAnswer(plant, toolType);
-                  },
+                itemBuilder: (_, i) => GestureDetector(
+                  onTap: () => _selectPlant(i),
+                  child: PlantCard(
+                    plant: _plants[i],
+                    fontSize: fontSize,
+                    isSelected: _selectedPlantIndex == i,
+                  ),
                 ),
               ),
             ),
@@ -549,8 +476,8 @@ class PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
               child: Padding(
                 padding: const EdgeInsets.all(8.0),
                 child: FilledButton(
-                  onPressed: () => widget.onFinish(correctAnswers, wrongAnswers),
-                  child: const Text('Kết thúc lượt chơi'),
+                  onPressed: _endDay,
+                  child: const Text('Kết thúc ngày'),
                 ),
               ),
             ),
@@ -560,177 +487,121 @@ class PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
     );
   }
 }
-// Các widget ToolWidget và PlantCard giữ nguyên, không cần thay đổi
-class ToolWidget extends StatelessWidget {
-  const ToolWidget({
-    super.key,
-    required this.tool,
-    required this.count,
-    this.isDragging = false,
-  });
 
-  final CareTool tool;
-  final int count;
-  final bool isDragging;
-
-  @override
-  Widget build(BuildContext context) {
-    return Opacity(
-      opacity: isDragging ? 0.3 : 1.0,
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.2),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(tool.icon, size: 32, color: count > 0 ? Colors.white : Colors.grey.shade600),
-            const SizedBox(height: 4),
-            Text(
-              count.toString(),
-              style: TextStyle(fontWeight: FontWeight.bold, color: count > 0 ? Colors.white : Colors.grey.shade600, shadows: [
-                Shadow(blurRadius: 2, color: Colors.black.withOpacity(0.5))
-              ]),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
+// MODIFIED: PlantCard now displays the species name
 class PlantCard extends StatelessWidget {
   final Plant plant;
-  final Function(Plant, CareToolType) onToolDropped;
+  final double fontSize;
+  final bool isSelected;
 
-  const PlantCard({super.key, required this.plant, required this.onToolDropped});
+  const PlantCard({super.key, required this.plant, required this.fontSize, required this.isSelected});
 
   @override
   Widget build(BuildContext context) {
-    final screenHeight = MediaQuery.of(context).size.height;
-    final fontSize = screenHeight * 0.05;
-    final isSick = plant.health < 100 && !plant.isCompleted;
+    final isHealthy = plant.health >= 80;
 
-    return DragTarget<CareToolType>(
-      builder: (context, candidateData, rejectedData) {
-        final isBeingTargeted = candidateData.isNotEmpty;
-
-        return Container(
-            decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(isBeingTargeted ? 0.4 : 0.2),
-                    blurRadius: 10,
-                    spreadRadius: 2,
-                    offset: const Offset(0, 5),
-                  )
-                ]
-            ),
-            child: Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-                side: BorderSide(
-                  color: isBeingTargeted ? Colors.yellow.shade600 : Colors.transparent,
-                  width: 4,
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 10,
+            spreadRadius: 2,
+            offset: const Offset(0, 5),
+          ),
+        ],
+        border: isSelected ? Border.all(color: Colors.yellow, width: 4) : null,
+      ),
+      child: Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: isHealthy ? Colors.green.shade400 : Colors.transparent, width: 4),
+        ),
+        color: plant.isCompleted ? const Color(0xFFE8F5E9) : (plant.health < 30 ? const Color(0xFFFFF3E0) : Colors.white),
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                Image.asset(
+                  plantImagePaths[plant.stage]!,
+                  height: fontSize * 2,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) => const Icon(Icons.error, color: Colors.red),
                 ),
-              ),
-              color: plant.isCompleted
-                  ? const Color(0xFFE8F5E9)
-                  : (isSick ? const Color(0xFFFFF3E0) : Colors.white),
-              clipBehavior: Clip.antiAlias,
-              child: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      Image.asset(
-                        plantImagePaths[plant.stage]!,
-                        height: fontSize * 1.8,
-                        fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) =>
-                        const Icon(Icons.error, color: Colors.red),
-                      ),
-                      const SizedBox(height: 4),
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          plant.label,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                        ),
-                      ),
-                      Text(
-                        plantStageDescriptiveNames[plant.stage]!,
-                        style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
-                      ),
-                      const SizedBox(height: 8),
-                      if (!plant.isCompleted)
-                        Column(
-                          children: [
-                            TweenAnimationBuilder<double>(
-                              tween: Tween<double>(begin: plant.health / 100, end: plant.health / 100),
-                              duration: const Duration(milliseconds: 300),
-                              builder: (context, value, child) => LinearProgressIndicator(
-                                value: value,
-                                color: plant.health > 50 ? Colors.green : Colors.orange,
-                                backgroundColor: Colors.grey.shade300,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              plantIssueLabels[plant.issue]!,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: Colors.red.shade700,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        )
-                      else
-                        Icon(
-                          Icons.check_circle,
-                          color: Colors.green.shade400,
-                          size: 36,
-                        ),
-                    ],
+                const SizedBox(height: 4),
+                // Display Species Name
+                Text(
+                  plant.speciesName,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.brown),
+                ),
+                Text(
+                  plantStageDescriptiveNames[plant.stage]!,
+                  style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+                ),
+                const SizedBox(height: 8),
+                Column(
+                  children: [
+                    _buildProgressBar('Nước', plant.waterLevel, Colors.blue),
+                    _buildProgressBar('Ánh sáng', plant.lightLevel, Colors.orange),
+                    _buildProgressBar('Dinh dưỡng', plant.nutrientLevel, Colors.green),
+                    _buildProgressBar('Sức khỏe', plant.health, plant.health > 50 ? Colors.teal : Colors.redAccent),
+                  ],
+                ),
+                if (plant.isCompleted)
+                  Icon(
+                    Icons.check_circle,
+                    color: Colors.green.shade400,
+                    size: 36,
                   ),
-                ),
-              ),
-            )
-        ).animate(
-          key: ValueKey('${plant.animationCounter}-${plant.animationTrigger}'),
-          onComplete: (controller) {
-            plant.animationTrigger = AnimationTrigger.idle;
-          },
-          effects: plant.animationTrigger == AnimationTrigger.correct
-              ? [
-            ScaleEffect(begin: const Offset(1,1), end: const Offset(1.1, 1.1), duration: 200.ms, curve: Curves.easeOut),
-            ThenEffect(delay: 50.ms),
-            ScaleEffect(end: const Offset(1,1), duration: 250.ms, curve: Curves.easeIn),
-            ShakeEffect(hz: 4, duration: 400.ms, rotation: 0.05),
-          ]
-              : plant.animationTrigger == AnimationTrigger.incorrect
-              ? [
-            ShakeEffect(hz: 8, duration: 500.ms, curve: Curves.easeInOut),
-            TintEffect(color: Colors.red, duration: 300.ms, end: 0.2),
-          ]
-              : [],
-        );
+              ],
+            ),
+          ),
+        ),
+      ),
+    ).animate(
+      key: ValueKey('${plant.animationCounter}-${plant.animationTrigger}'),
+      onComplete: (controller) {
+        plant.animationTrigger = AnimationTrigger.idle;
       },
-      onWillAcceptWithDetails: (details) {
-        return !plant.isCompleted;
-      },
-      onAccept: (receivedToolType) {
-        onToolDropped(plant, receivedToolType);
-      },
+      effects: plant.animationTrigger == AnimationTrigger.healthy
+          ? [
+        ScaleEffect(begin: const Offset(1, 1), end: const Offset(1.1, 1.1), duration: 200.ms, curve: Curves.easeOut),
+        ThenEffect(delay: 50.ms),
+        ScaleEffect(end: const Offset(1, 1), duration: 250.ms, curve: Curves.easeIn),
+      ]
+          : plant.animationTrigger == AnimationTrigger.unhealthy
+          ? [
+        ShakeEffect(hz: 8, duration: 500.ms, curve: Curves.easeInOut),
+        TintEffect(color: Colors.red, duration: 300.ms, end: 0.2),
+      ]
+          : [],
+    );
+  }
+
+  Widget _buildProgressBar(String label, double value, Color color) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2.0),
+      child: Row(
+        children: [
+          SizedBox(width: 80, child: Text('$label:', style: const TextStyle(fontSize: 12))),
+          Expanded(
+            child: LinearProgressIndicator(
+              value: value / 100,
+              color: color,
+              backgroundColor: Colors.grey.shade300,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text('${value.toInt()}%'),
+        ],
+      ),
     );
   }
 }

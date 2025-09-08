@@ -6,7 +6,6 @@ import 'package:mobileapp/game/core/game.dart';
 import 'package:mobileapp/game/core/types.dart';
 import 'package:mobileapp/game/traffic_safety/data/traffic_safety_questions.dart';
 
-// ... (Enum và Class Question giữ nguyên)
 enum QuestionType { multipleChoice, sorting, imageSelection }
 
 class Question {
@@ -189,7 +188,7 @@ class TrafficSafetyPlayScreenState extends State<TrafficSafetyPlayScreen> {
     final isRight = sortedIndices.asMap().entries.every((entry) => entry.value == question.correctAnswerIndices[entry.key]);
 
     setState(() {
-      _sortedOptions = sortedIndices;
+      _selectedOption = 1; // Đánh dấu là đã trả lời để khóa tương tác
       if (isRight) {
         _correct++;
         _flashCorrect = true;
@@ -273,7 +272,7 @@ class TrafficSafetyPlayScreenState extends State<TrafficSafetyPlayScreen> {
         children: [
           Positioned.fill(
             child: Image.asset(
-              'assets/images/traffic_background.jpg', // <-- Tên file ảnh nền
+              'assets/images/traffic_background.jpg',
               fit: BoxFit.cover,
             ),
           ),
@@ -465,63 +464,109 @@ class TrafficSafetyPlayScreenState extends State<TrafficSafetyPlayScreen> {
   }
 
   Widget _buildSortingQuestion(Question question, Size screenSize) {
-    return DragTarget<int>(
-      onAccept: (index) {
-        setState(() {
-          _sortedOptions.add(index);
-        });
-        if (_sortedOptions.length == question.options.length) {
-          _handleSortingAnswer(_sortedOptions);
-        }
-      },
-      builder: (context, candidateData, rejectedData) {
-        return Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text(
-              'Kéo và thả các lựa chọn theo thứ tự đúng:',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Colors.white, // Thêm màu để dễ đọc
-                shadows: [Shadow(blurRadius: 2, color: Colors.black)],
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Text(
+          'Kéo lựa chọn phù hợp vào hộp',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+            shadows: [Shadow(blurRadius: 2, color: Colors.black)],
+          ),
+        ),
+        const SizedBox(height: 16),
+        DragTarget<int>(
+          builder: (context, candidateData, rejectedData) {
+            return Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12.0),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.25),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: candidateData.isNotEmpty ? Colors.lightBlueAccent : Colors.white60,
+                  width: 2,
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _sortedOptions.asMap().entries.map((entry) => Chip(
-                label: Text(question.options[entry.value]),
-                backgroundColor: Colors.blue[100],
-              )).toList(),
-            ),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: List.generate(question.options.length, (i) {
-                if (_sortedOptions.contains(i)) return const SizedBox.shrink();
-                return Draggable<int>(
-                  data: i,
-                  feedback: Material(
-                    color: Colors.transparent, // Nền trong suốt
-                    child: Chip(
-                      label: Text(question.options[i]),
-                      backgroundColor: Colors.blue[300],
+              constraints: BoxConstraints(minHeight: screenSize.height * 0.15),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: WrapAlignment.center,
+                children: _sortedOptions.map((optionIndex) {
+                  return Draggable<int>(
+                    data: optionIndex,
+                    feedback: Material(
+                      color: Colors.transparent,
+                      child: Chip(label: Text(question.options[optionIndex]), backgroundColor: Colors.green[200]),
                     ),
-                  ),
-                  childWhenDragging: const SizedBox.shrink(),
-                  child: Chip(
-                    label: Text(question.options[i]),
-                    backgroundColor: Colors.blue[200],
+                    childWhenDragging: const SizedBox.shrink(),
+                    child: Chip(
+                      label: Text(question.options[optionIndex]),
+                      backgroundColor: Colors.green[100],
+                    ),
+                  );
+                }).toList(),
+              ),
+            );
+          },
+          onAccept: (index) {
+            if (_selectedOption != null) return;
+            setState(() {
+              _sortedOptions.add(index);
+              if (_sortedOptions.length == question.options.length) {
+                Future.delayed(const Duration(milliseconds: 200), () {
+                  if (mounted) _handleSortingAnswer(_sortedOptions);
+                });
+              }
+            });
+          },
+        ),
+
+        const SizedBox(height: 10),
+        const Text('↓ Kéo từ đây ↓', style: TextStyle(color: Colors.white70)),
+
+        Expanded(
+          child: SingleChildScrollView(
+            child: DragTarget<int>(
+              builder: (context, candidateData, rejectedData) {
+                final availableOptions = List.generate(question.options.length, (i) => i)
+                    .where((i) => !_sortedOptions.contains(i))
+                    .toList();
+                return Container(
+                  padding: const EdgeInsets.all(16.0),
+                  constraints: const BoxConstraints(minWidth: double.infinity),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    alignment: WrapAlignment.center,
+                    children: availableOptions.map((i) {
+                      return Draggable<int>(
+                        data: i,
+                        feedback: Material(
+                          color: Colors.transparent,
+                          child: Chip(label: Text(question.options[i]), backgroundColor: Colors.blue[300]),
+                        ),
+                        childWhenDragging: Chip(label: Text(question.options[i]), backgroundColor: Colors.grey),
+                        child: Chip(label: Text(question.options[i]), backgroundColor: Colors.blue[200]),
+                      );
+                    }).toList(),
                   ),
                 );
-              }),
+              },
+              onAccept: (index) {
+                if (_selectedOption != null) return;
+                setState(() {
+                  _sortedOptions.remove(index);
+                });
+              },
             ),
-          ],
-        );
-      },
+          ),
+        ),
+      ],
     );
   }
 
@@ -569,7 +614,7 @@ class TrafficSafetyPlayScreenState extends State<TrafficSafetyPlayScreen> {
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: BoxDecoration(
-          color: color.withOpacity(.25), // Tăng độ đậm của màu nền chip
+          color: color.withOpacity(.25),
           borderRadius: BorderRadius.circular(32),
           border: Border.all(color: color.withOpacity(.5)),
         ),

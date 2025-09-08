@@ -2,6 +2,52 @@
 import 'package:flutter/material.dart';
 import '../plant_care_play_screen.dart';
 
+
+// NEW: Enum for different plant types
+enum PlantType { normal, cactus, fern }
+
+// NEW: Class to define the characteristics of each plant species
+class PlantSpecies {
+  final PlantType type;
+  final String name;
+  final double waterNeed; // Multiplier for water consumption
+  final double lightNeed; // Multiplier for light consumption
+  final double waterTolerance; // Max water level before damage
+  final double lightTolerance; // Max light level before damage
+
+  const PlantSpecies({
+    required this.type,
+    required this.name,
+    this.waterNeed = 1.0,
+    this.lightNeed = 1.0,
+    this.waterTolerance = 100.0,
+    this.lightTolerance = 100.0,
+  });
+}
+
+// NEW: Database for plant species
+const Map<PlantType, PlantSpecies> plantSpeciesData = {
+  PlantType.normal: PlantSpecies(
+    type: PlantType.normal,
+    name: 'Cây Thường',
+  ),
+  PlantType.cactus: PlantSpecies(
+    type: PlantType.cactus,
+    name: 'Xương Rồng',
+    waterNeed: 0.5, // Needs half the water
+    lightNeed: 1.5, // Needs 50% more light
+    waterTolerance: 70.0, // Health decreases if water > 70
+  ),
+  PlantType.fern: PlantSpecies(
+    type: PlantType.fern,
+    name: 'Dương Xỉ',
+    waterNeed: 1.5, // Needs 50% more water
+    lightNeed: 0.7, // Needs 30% less light
+    lightTolerance: 80.0, // Health decreases if light > 80
+  ),
+};
+
+
 // 1. Dữ liệu về các dụng cụ
 const List<CareTool> plantCareTools = [
   CareTool('Tưới Nước', Icons.water_drop, CareToolType.nuoc, PlantIssue.datKho, 'Chính xác! Nước rất cần thiết cho cây.'),

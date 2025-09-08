@@ -6,6 +6,11 @@ import '../services/tre_service.dart';
 import 'package:mobileapp/game/core/types.dart';
 import '../game/core/game_registry.dart';
 
+// THÊM: Import các service và model cần thiết
+import '../services/game_progress_service.dart';
+import '../game/core/game_progress.dart';
+
+
 class GameSelectScreen extends StatefulWidget {
   final GameInfo gameInfo;
 
@@ -19,6 +24,73 @@ class _GameSelectScreenState extends State<GameSelectScreen> {
   Tre? _selectedTre;
   GameDifficulty _difficulty = GameDifficulty.easy;
 
+  // ====================================================================
+  // HÀM MỚI: Xử lý logic khi nhấn nút "Bắt đầu chơi"
+  // ====================================================================
+  Future<void> _handleStartGame() async {
+    if (_selectedTre == null) return;
+
+    final tre = _selectedTre!;
+    final gameInfo = widget.gameInfo;
+    final gameProgressService = GameProgressService();
+
+    // 1. Kiểm tra xem có tiến trình nào đã được lưu không
+    final GameProgress? savedProgress = await gameProgressService.load(tre.id, gameInfo.id);
+
+    // 2. Nếu không có tiến trình lưu, hoặc context không còn tồn tại, thì vào game luôn
+    if (savedProgress == null || !mounted) {
+      _navigateToGame(tre);
+      return;
+    }
+
+    // 3. Nếu có, hiển thị hộp thoại hỏi người dùng
+    showDialog(
+      context: context,
+      barrierDismissible: false, // Người dùng phải chọn một trong hai
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Phát hiện tiến trình đã lưu'),
+          content: const Text('Bạn có một ván chơi đang dang dở. Bạn muốn tiếp tục hay bắt đầu một ván chơi mới?'),
+          actions: <Widget>[
+            // Nút "Chơi mới": Xóa tiến trình cũ rồi vào game
+            TextButton(
+              child: const Text('Chơi mới'),
+              onPressed: () async {
+                await gameProgressService.clear(tre.id, gameInfo.id);
+                if (mounted) {
+                  Navigator.of(context).pop(); // Đóng hộp thoại
+                  _navigateToGame(tre);
+                }
+              },
+            ),
+            // Nút "Chơi tiếp": Chỉ vào game, launcher sẽ tự tải tiến trình
+            FilledButton(
+              child: const Text('Chơi tiếp'),
+              onPressed: () {
+                Navigator.of(context).pop(); // Đóng hộp thoại
+                _navigateToGame(tre);
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // HÀM MỚI: Tách riêng phần điều hướng để dễ gọi lại
+  void _navigateToGame(Tre tre) {
+    Navigator.pushNamed(
+      context,
+      widget.gameInfo.route,
+      arguments: <String, Object>{
+        'treId': tre.id,
+        'treName': tre.hoTen.isEmpty ? 'Bé' : tre.hoTen,
+        'difficulty': _difficulty,
+      },
+    );
+  }
+  // ====================================================================
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -30,7 +102,7 @@ class _GameSelectScreenState extends State<GameSelectScreen> {
       appBar: AppBar(title: Text('Chơi: ${widget.gameInfo.name}')),
       body: Column(
         children: [
-          // ---------- Danh sách Trẻ ----------
+          // ---------- Danh sách Trẻ (giữ nguyên) ----------
           Expanded(
             child: StreamBuilder<List<Tre>>(
               stream: TreService().watchTreList(user.uid),
@@ -74,7 +146,7 @@ class _GameSelectScreenState extends State<GameSelectScreen> {
             ),
           ),
 
-          // ---------- Chọn độ khó ----------
+          // ---------- Chọn độ khó (giữ nguyên) ----------
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
             child: Row(
@@ -101,20 +173,8 @@ class _GameSelectScreenState extends State<GameSelectScreen> {
               child: FilledButton.icon(
                 icon: const Icon(Icons.play_arrow),
                 label: const Text('Bắt đầu chơi'),
-                onPressed: _selectedTre == null
-                    ? null
-                    : () {
-                  final tre = _selectedTre!;
-                  Navigator.pushNamed(
-                    context,
-                    widget.gameInfo.route,
-                    arguments: <String, Object>{
-                      'treId': tre.id,
-                      'treName': tre.hoTen.isEmpty ? 'Bé' : tre.hoTen,
-                      'difficulty': _difficulty,
-                    },
-                  );
-                },
+                // SỬA ĐỔI: Gọi hàm _handleStartGame thay vì điều hướng trực tiếp
+                onPressed: _selectedTre == null ? null : _handleStartGame,
               ),
             ),
           ),

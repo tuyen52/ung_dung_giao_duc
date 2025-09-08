@@ -43,17 +43,19 @@ const List<Question> trafficSafetyQuestionsPool = [
     correctAnswerIndices: [1, 0, 3, 2],
     type: QuestionType.sorting,
   ),
+  // === CÂU HỎI CŨ ĐÃ ĐƯỢC THAY THẾ BẰNG CÂU HỎI MỚI DƯỚI ĐÂY ===
   Question(
-    id: 'q6',
-    situation: 'Chọn biển báo cấm đỗ xe:',
-    imagePath: 'assets/images/traffic_signs.png',
+    id: 'q_safe_to_walk', // ID mới có ý nghĩa hơn
+    situation: 'Đâu là nơi an toàn để em đi bộ?', // Nội dung câu hỏi mới, phù hợp
+    icon: '🚶', // Thêm icon cho sinh động
+    // Không có 'imagePath' để tránh gây nhầm lẫn
     options: [
-      'assets/images/no_parking.png',
-      'assets/images/no_entry.png',
-      'assets/images/speed_limit.png',
-      'assets/images/pedestrian.png'
+      'assets/images/sidewalk.jpg',       // Giả sử đây là ảnh vỉa hè
+      'assets/images/road_with_cars.jpg', // Giả sử đây là ảnh lòng đường
+      'assets/images/playing_on_street.jpg', // Ví dụ: ảnh trẻ em chơi dưới lòng đường
+      'assets/images/railway_track.jpg', // Ví dụ: ảnh đường ray xe lửa
     ],
-    correctAnswerIndices: [0],
+    correctAnswerIndices: [0], // Đáp án đúng là lựa chọn đầu tiên
     type: QuestionType.imageSelection,
   ),
 ];

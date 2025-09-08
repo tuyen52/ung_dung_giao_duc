@@ -9,7 +9,6 @@ class GameScreenWrapper extends StatefulWidget {
   final VoidCallback onFinishAndExit;
   final VoidCallback? onSaveAndExit;
   final VoidCallback? onRestart;
-  // THÊM: Tham số để nhận nội dung Sổ tay từ launcher
   final Widget? handbookContent;
 
   const GameScreenWrapper({
@@ -42,7 +41,6 @@ class _GameScreenWrapperState extends State<GameScreenWrapper> {
     super.dispose();
   }
 
-  // Widget helper để tạo nút cho dialog, giữ nguyên
   Widget _buildDialogButton({
     required String text,
     required IconData icon,
@@ -64,11 +62,11 @@ class _GameScreenWrapperState extends State<GameScreenWrapper> {
     );
   }
 
-  // HÀM MỚI: Hàm chung để hiển thị dialog với giao diện tùy chỉnh
   void _showCustomDialog({
     required String title,
     required Widget content,
     List<Widget> actions = const [],
+    bool isScrollable = false, // Thêm tham số isScrollable
   }) {
     showDialog(
       context: context,
@@ -107,7 +105,15 @@ class _GameScreenWrapperState extends State<GameScreenWrapper> {
                   ),
                 ),
                 const SizedBox(height: 16.0),
-                content,
+
+                // === BẮT ĐẦU SỬA LỖI ===
+                // Logic điều kiện: chỉ Expanded khi isScrollable là true
+                if (isScrollable)
+                  Expanded(child: content)
+                else
+                  content,
+                // === KẾT THÚC SỬA LỖI ===
+
                 const SizedBox(height: 24.0),
                 if (actions.isNotEmpty)
                   Column(
@@ -122,7 +128,6 @@ class _GameScreenWrapperState extends State<GameScreenWrapper> {
     );
   }
 
-  // CẬP NHẬT: Sử dụng hàm _showCustomDialog
   void _showExitConfirmationDialog() {
     _showCustomDialog(
       title: 'Xác nhận thoát',
@@ -163,7 +168,6 @@ class _GameScreenWrapperState extends State<GameScreenWrapper> {
     );
   }
 
-  // CẬP NHẬT: Sử dụng hàm _showCustomDialog
   void _showSettings() {
     _showCustomDialog(
       title: 'Cài đặt',
@@ -199,7 +203,6 @@ class _GameScreenWrapperState extends State<GameScreenWrapper> {
     );
   }
 
-  // HÀM MỚI: Dành riêng cho Sổ tay, sử dụng nội dung được truyền vào
   void _showHandbookDialog() {
     if (widget.handbookContent == null) return;
     _showCustomDialog(
@@ -213,6 +216,7 @@ class _GameScreenWrapperState extends State<GameScreenWrapper> {
           backgroundColor: Colors.blueAccent,
         ),
       ],
+      isScrollable: true, // Thêm isScrollable: true cho hộp thoại hướng dẫn
     );
   }
 
@@ -266,7 +270,6 @@ class _GameScreenWrapperState extends State<GameScreenWrapper> {
                 widget.onRestart?.call();
               },
               onSettings: _showSettings,
-              // CẬP NHẬT: Kết nối với hàm hiển thị Sổ tay mới
               onHandbook:
               widget.handbookContent != null ? _showHandbookDialog : null,
               onExit: _showExitConfirmationDialog,

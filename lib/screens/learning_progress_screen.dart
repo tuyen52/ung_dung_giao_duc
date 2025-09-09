@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../models/tre.dart';
 import '../services/tre_service.dart';
@@ -19,30 +20,80 @@ class _LearningProgressScreenState extends State<LearningProgressScreen> {
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      return const Scaffold(body: Center(child: Text('Vui lòng đăng nhập')));
+      return Scaffold(
+        body: Center(
+          child: Text('Vui lòng đăng nhập', style: GoogleFonts.quicksand()),
+        ),
+      );
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Tiến Độ Học')),
-      body: Column(
-        children: [
-          // -------- Chọn Trẻ --------
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: _TrePicker(
-              parentUid: user.uid,
-              selectedTreId: _selectedTreId,
-              onChanged: (id) => setState(() => _selectedTreId = id),
+      appBar: AppBar(
+        title: Text(
+          'Tiến Độ Học',
+          style: GoogleFonts.quicksand(
+            fontSize: 24,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+          ),
+        ),
+        centerTitle: true,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Color(0xFFBA68C8),
+                Color(0xFF8EC5FC),
+              ],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
             ),
           ),
-          const Divider(height: 0),
-          // -------- Danh sách tiến độ --------
-          Expanded(
-            child: _selectedTreId == null
-                ? const Center(child: Text('Hãy chọn một hồ sơ trẻ để xem tiến độ.'))
-                : _GameProgressList(treId: _selectedTreId!),
+        ),
+      ),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Color(0xFFBA68C8),
+              Color(0xFF8EC5FC),
+            ],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
           ),
-        ],
+        ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
+              child: _TrePicker(
+                parentUid: user.uid,
+                selectedTreId: _selectedTreId,
+                onChanged: (id) => setState(() => _selectedTreId = id),
+              ),
+            ),
+            const Divider(height: 0, color: Colors.white54),
+            Expanded(
+              child: _selectedTreId == null
+                  ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text(
+                    'Hãy chọn một hồ sơ trẻ để xem tiến độ.',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.quicksand(
+                      fontSize: 18,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              )
+                  : _GameProgressList(treId: _selectedTreId!),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -65,73 +116,105 @@ class _TrePicker extends StatelessWidget {
       stream: TreService().watchTreList(parentUid),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
-          return const LinearProgressIndicator(minHeight: 2);
+          return const LinearProgressIndicator(minHeight: 2, color: Colors.white);
         }
         final list = snap.data ?? const <Tre>[];
-        if (list.isEmpty) return const Text('Chưa có hồ sơ trẻ.');
+        if (list.isEmpty) {
+          return Text(
+            'Chưa có hồ sơ trẻ.',
+            style: GoogleFonts.quicksand(color: Colors.white),
+          );
+        }
 
-        // Nếu chưa chọn, mặc định chọn phần tử đầu.
         final value = selectedTreId ?? list.first.id;
 
-        return Row(
-          children: [
-            const Text('Trẻ:', style: TextStyle(fontWeight: FontWeight.w600)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: DropdownButtonFormField<String>(
-                value: value,
-                items: [
-                  for (final t in list)
-                    DropdownMenuItem(
-                      value: t.id,
-                      child: Text(t.hoTen.isEmpty ? 'Bé' : t.hoTen),
-                    ),
-                ],
-                onChanged: onChanged,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                ),
+        return Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.9),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 10,
+                offset: const Offset(0, 5),
               ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Row(
+              children: [
+                Icon(Icons.child_care_rounded, color: const Color(0xFFBA68C8), size: 30),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    value: value,
+                    items: [
+                      for (final t in list)
+                        DropdownMenuItem(
+                          value: t.id,
+                          child: Text(
+                            t.hoTen.isEmpty ? 'Bé' : t.hoTen,
+                            style: GoogleFonts.quicksand(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                    ],
+                    onChanged: onChanged,
+                    decoration: InputDecoration(
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: EdgeInsets.zero,
+                      hintText: 'Chọn hồ sơ trẻ',
+                      hintStyle: GoogleFonts.quicksand(color: Colors.grey),
+                    ),
+                    style: GoogleFonts.quicksand(color: Colors.black),
+                    dropdownColor: Colors.white,
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         );
       },
     );
   }
 }
 
-/// ĐỌC từ `plays/{treId}` theo đúng cấu trúc bạn đang có
 class _GameProgressList extends StatelessWidget {
   const _GameProgressList({required this.treId});
   final String treId;
 
   @override
   Widget build(BuildContext context) {
-    // 🔁 đổi ref: plays/{treId}
     final ref = FirebaseDatabase.instance.ref('plays/$treId');
 
     return StreamBuilder<DatabaseEvent>(
       stream: ref.onValue,
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(child: CircularProgressIndicator(color: Colors.white));
         }
         if (!snap.hasData || snap.data!.snapshot.value == null) {
-          return const Center(child: Text('Chưa có dữ liệu tiến độ.'));
+          return Center(
+            child: Text(
+              'Chưa có dữ liệu tiến độ cho bé này.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.quicksand(
+                fontSize: 18,
+                color: Colors.white,
+              ),
+            ),
+          );
         }
 
         final raw = Map<String, dynamic>.from(
           snap.data!.snapshot.value as Map,
         );
 
-        // playId -> Map
         final plays = raw.values
             .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e as Map))
             .toList();
 
-        // Gom theo gameId (vì bạn có thể có nhiều game sau này)
         final Map<String, _GameAgg> byGame = {};
         for (final p in plays) {
           final id = (p['gameId'] ?? 'unknown') as String;
@@ -151,13 +234,22 @@ class _GameProgressList extends StatelessWidget {
           ..sort((a, b) => a.gameName.compareTo(b.gameName));
 
         if (games.isEmpty) {
-          return const Center(child: Text('Chưa có dữ liệu tiến độ.'));
+          return Center(
+            child: Text(
+              'Chưa có dữ liệu tiến độ cho bé này.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.quicksand(
+                fontSize: 18,
+                color: Colors.white,
+              ),
+            ),
+          );
         }
 
         return ListView.separated(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(24),
           itemBuilder: (_, i) => _GameProgressCard(agg: games[i]),
-          separatorBuilder: (_, __) => const SizedBox(height: 12),
+          separatorBuilder: (_, __) => const SizedBox(height: 16),
           itemCount: games.length,
         );
       },
@@ -185,32 +277,49 @@ class _GameProgressCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      elevation: 8,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(agg.gameName,
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-          const SizedBox(height: 8),
-          _row('Hoàn thành', '${agg.count} phiên • ${agg.totalQuestions} câu'),
-          _row('Tiến độ', 'Đúng ${agg.totalCorrect} • Sai ${agg.totalWrong}'),
-          _row('Tổng điểm', agg.totalScore.toString()),
+          Text(
+            agg.gameName,
+            style: GoogleFonts.quicksand(
+              fontWeight: FontWeight.bold,
+              fontSize: 20,
+              color: const Color(0xFF6A1B9A),
+            ),
+          ),
+          const SizedBox(height: 12),
+          _row('Hoàn thành', '${agg.count} phiên • ${agg.totalQuestions} câu', Icons.sports_esports_outlined),
+          _row('Tiến độ', 'Đúng ${agg.totalCorrect} • Sai ${agg.totalWrong}', Icons.poll_outlined),
+          _row('Tổng điểm', agg.totalScore.toString(), Icons.score),
         ]),
       ),
     );
   }
 
-  Widget _row(String k, String v) => Padding(
-        padding: const EdgeInsets.only(top: 4),
-        child: Row(
-          children: [
-            Expanded(flex: 4, child: Text(k)),
-            Expanded(
-              flex: 6,
-              child: Text(v, style: const TextStyle(fontWeight: FontWeight.w600)),
-            ),
-          ],
+  Widget _row(String k, String v, IconData icon) => Padding(
+    padding: const EdgeInsets.only(top: 8),
+    child: Row(
+      children: [
+        Icon(icon, color: Colors.grey[600], size: 20),
+        const SizedBox(width: 10),
+        Expanded(
+          flex: 4,
+          child: Text(k, style: GoogleFonts.quicksand(color: Colors.grey[700])),
         ),
-      );
+        Expanded(
+          flex: 6,
+          child: Text(
+            v,
+            style: GoogleFonts.quicksand(
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 }

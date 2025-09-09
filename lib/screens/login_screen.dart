@@ -142,7 +142,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           TextFormField(
                             controller: _emailCtrl,
                             decoration: InputDecoration(
-                              hintText: 'Email hoặc Tên đăng nhập',
+                              hintText: 'Email ',
                               hintStyle: const TextStyle(color: Color(0xFF80CBC4)),
                               prefixIcon: const Icon(Icons.person_outline, color: Color(0xFF26A69A)), // Icon màu xanh
                               border: OutlineInputBorder(
@@ -201,23 +201,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             cursorColor: const Color(0xFF00897B),
                           ),
                           const SizedBox(height: 25),
-                          // Nút "Quên mật khẩu?"
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: TextButton(
-                              onPressed: _busy ? null : () {
-                                // Xử lý quên mật khẩu
-                              },
-                              child: const Text(
-                                'Quên mật khẩu?',
-                                style: TextStyle(
-                                  color: Color(0xFF26A69A), // Màu xanh ngọc sáng
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 15,
-                                ),
-                              ),
-                            ),
-                          ),
+
                           const SizedBox(height: 35),
                           // Nút "Đăng Nhập" với gradient và đổ bóng mới
                           Container(

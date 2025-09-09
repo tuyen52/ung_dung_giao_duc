@@ -119,11 +119,13 @@ class _RegisterChildScreenState extends State<RegisterChildScreen> {
                   child: IntrinsicHeight(
                     child: Column(
                       children: [
-                        const SizedBox(height: 40),
+                        // --- THAY ĐỔI BẮT ĐẦU TỪ ĐÂY ---
+
+                        const SizedBox(height: 20), // Giảm khoảng trống trên cùng
                         Text(
                           'Thêm Hồ Sơ Của Bé',
                           style: GoogleFonts.balsamiqSans(
-                            fontSize: 28,
+                            fontSize: 26, // Giảm kích thước font
                             fontWeight: FontWeight.w800,
                             color: Colors.white,
                             shadows: [
@@ -136,14 +138,16 @@ class _RegisterChildScreenState extends State<RegisterChildScreen> {
                           ),
                           textAlign: TextAlign.center,
                         ),
-                        const SizedBox(height: 20),
-                        // Using a playful icon for a kid-friendly look
+                        const SizedBox(height: 15), // Giảm khoảng trống
                         const Icon(
                           Icons.child_care_rounded,
-                          size: 150,
+                          size: 100, // Giảm kích thước icon
                           color: Colors.white,
                         ),
-                        const SizedBox(height: 30),
+                        const SizedBox(height: 25), // Giảm khoảng trống
+
+                        // --- THAY ĐỔI KẾT THÚC TẠI ĐÂY ---
+
                         Container(
                           padding: const EdgeInsets.all(24),
                           margin: const EdgeInsets.symmetric(horizontal: 20),
@@ -211,7 +215,7 @@ class _RegisterChildScreenState extends State<RegisterChildScreen> {
                             ),
                           ),
                         ),
-                        const Spacer(), // Pushes content to the top and fills space
+                        const Spacer(),
                       ],
                     ),
                   ),

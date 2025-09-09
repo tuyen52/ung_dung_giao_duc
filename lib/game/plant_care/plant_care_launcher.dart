@@ -45,7 +45,7 @@ class _PlantCareGameLauncherState extends State<PlantCareGameLauncher> {
   };
 
   Future<void> _finishAndSave(int correct, int wrong) async {
-    final raw = correct * 5 - wrong * 5;
+    final raw = correct * 3 - wrong * 3;
     final score = raw < 0 ? 0 : raw;
 
     await GameSessionService().saveAndReward(

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'screens/home_screen.dart';
+import 'package:google_fonts/google_fonts.dart';
+
+import 'screens/game_list_screen.dart';
 import 'screens/time_screen.dart';
 import 'screens/list_tre_screen.dart';
 import 'screens/reward_list_screen.dart';
@@ -15,27 +17,78 @@ class _HomeShellState extends State<HomeShell> {
   int _index = 0;
 
   final _pages = const [
-    HomeScreen(),          // 👈 Trang chủ có nút “Chơi game…”
+    GameListScreen(),
     TimeScreen(),
     ListTreScreen(),
     RewardListScreen(),
-    ProfileScreen(),       // nếu bạn có tab Hồ sơ
+    ProfileScreen(),
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _pages[_index],
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Trang chủ'),
-          NavigationDestination(icon: Icon(Icons.access_time), label: 'Thời gian'),
-          NavigationDestination(icon: Icon(Icons.emoji_people_outlined), selectedIcon: Icon(Icons.emoji_people), label: 'Trẻ'),
-          NavigationDestination(icon: Icon(Icons.star_border), selectedIcon: Icon(Icons.star), label: 'Điểm'),
-          NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Hồ sơ'),
-        ],
+      extendBody: true,
+      body: IndexedStack(
+        index: _index,
+        children: _pages,
+      ),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 15,
+              offset: const Offset(0, -5),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(25)),
+          child: BottomNavigationBar(
+            currentIndex: _index,
+            onTap: (i) => setState(() => _index = i),
+            type: BottomNavigationBarType.fixed,
+            selectedItemColor: const Color(0xFF6A1B9A),
+            unselectedItemColor: Colors.grey[400],
+            backgroundColor: Colors.white,
+            selectedLabelStyle: GoogleFonts.balsamiqSans(
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+            unselectedLabelStyle: GoogleFonts.balsamiqSans(
+              fontWeight: FontWeight.normal,
+              fontSize: 11,
+            ),
+            items: const [
+              BottomNavigationBarItem(
+                icon: Icon(Icons.videogame_asset_outlined),
+                activeIcon: Icon(Icons.videogame_asset),
+                label: 'Game',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.access_time_outlined),
+                activeIcon: Icon(Icons.access_time),
+                label: 'Thời gian',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.groups_outlined),
+                activeIcon: Icon(Icons.groups),
+                label: 'Trẻ',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.card_giftcard_outlined),
+                activeIcon: Icon(Icons.card_giftcard),
+                label: 'Thưởng',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.person_outline),
+                activeIcon: Icon(Icons.person),
+                label: 'Hồ sơ',
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

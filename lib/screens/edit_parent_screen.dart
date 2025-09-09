@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -12,20 +13,24 @@ class EditParentScreen extends StatefulWidget {
 
 class _EditParentScreenState extends State<EditParentScreen> with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
+  final _userService = UserService();
+
   final _nameCtrl = TextEditingController();
   final _usernameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
+  final _addressCtrl = TextEditingController();
 
   late AnimationController _iconAnimationController;
   late Animation<double> _iconAnimation;
 
   bool _loading = true;
+  bool _saving = false;
 
   @override
   void initState() {
     super.initState();
-    _loadProfile();
+    _loadInitial();
     _iconAnimationController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 1),
@@ -35,6 +40,64 @@ class _EditParentScreenState extends State<EditParentScreen> with SingleTickerPr
     );
   }
 
+  Future<void> _loadInitial() async {
+    final u = FirebaseAuth.instance.currentUser;
+    if (u == null) {
+      setState(() => _loading = false);
+      return;
+    }
+
+    try {
+      final profile = await _userService.getProfile(u.uid);
+      _nameCtrl.text = (profile?['name'] ?? u.displayName ?? '').toString();
+      _usernameCtrl.text = (profile?['username'] ?? _deriveUsername(u.email ?? 'user@${u.uid}', u.uid)).toString();
+      _emailCtrl.text = (profile?['email'] ?? u.email ?? '').toString();
+      _phoneCtrl.text = (profile?['phone'] ?? u.phoneNumber ?? '').toString();
+      _addressCtrl.text = (profile?['address'] ?? '').toString();
+    } catch (_) {
+      _nameCtrl.text = (u.displayName ?? '').toString();
+      _usernameCtrl.text = _deriveUsername(u.email ?? 'user@${u.uid}', u.uid);
+      _emailCtrl.text = (u.email ?? '').toString();
+      _phoneCtrl.text = (u.phoneNumber ?? '').toString();
+      _addressCtrl.text = '';
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    final u = FirebaseAuth.instance.currentUser;
+    if (u == null) return;
+
+    setState(() => _saving = true);
+    try {
+      await _userService.upsertProfile(
+        uid: u.uid,
+        name: _nameCtrl.text.trim(),
+        username: _usernameCtrl.text.trim(),
+        phone: _phoneCtrl.text.trim(),
+        address: _addressCtrl.text.trim(),
+      );
+      if (_nameCtrl.text.trim().isNotEmpty) {
+        await _userService.updateAuthDisplayName(_nameCtrl.text.trim());
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Đã lưu hồ sơ', style: GoogleFonts.balsamiqSans())),
+      );
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Lỗi lưu: $e', style: GoogleFonts.balsamiqSans())),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   @override
   void dispose() {
     _iconAnimationController.dispose();
@@ -42,46 +105,8 @@ class _EditParentScreenState extends State<EditParentScreen> with SingleTickerPr
     _usernameCtrl.dispose();
     _emailCtrl.dispose();
     _phoneCtrl.dispose();
+    _addressCtrl.dispose();
     super.dispose();
-  }
-
-  Future<void> _loadProfile() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    final dbData = await UserService().getProfile(user.uid);
-    if (dbData != null) {
-      _nameCtrl.text = dbData['name'] ?? '';
-      _usernameCtrl.text = dbData['username'] ?? '';
-      _emailCtrl.text = dbData['email'] ?? user.email ?? '';
-      _phoneCtrl.text = dbData['phone'] ?? user.phoneNumber ?? '';
-    } else {
-      _nameCtrl.text = user.displayName ?? '';
-      _emailCtrl.text = user.email ?? '';
-      _phoneCtrl.text = user.phoneNumber ?? '';
-    }
-
-    if (mounted) setState(() => _loading = false);
-  }
-
-  Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    await UserService().saveProfile(
-      uid: user.uid,
-      name: _nameCtrl.text.trim(),
-      username: _usernameCtrl.text.trim(),
-      email: _emailCtrl.text.trim(),
-      phone: _phoneCtrl.text.trim(),
-    );
-
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Cập nhật thành công!')),
-    );
-    Navigator.pop(context);
   }
 
   @override
@@ -100,8 +125,8 @@ class _EditParentScreenState extends State<EditParentScreen> with SingleTickerPr
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              Color(0xFF8EC5FC),
-              Color(0xFFE0C3FC),
+              Color(0xFF8EC5FC), // Màu xanh dương nhạt
+              Color(0xFFE0C3FC), // Màu tím hồng nhạt
             ],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
@@ -117,9 +142,9 @@ class _EditParentScreenState extends State<EditParentScreen> with SingleTickerPr
                 child: IntrinsicHeight(
                   child: Column(
                     children: [
-                      const SizedBox(height: 80),
+                      SizedBox(height: MediaQuery.of(context).padding.top + 20),
                       Text(
-                        'Chỉnh Sửa Hồ Sơ',
+                        'Chỉnh Sửa Hồ Sơ Phụ Huynh',
                         style: GoogleFonts.balsamiqSans(
                           fontSize: 28,
                           fontWeight: FontWeight.w800,
@@ -184,21 +209,37 @@ class _EditParentScreenState extends State<EditParentScreen> with SingleTickerPr
                                 controller: _emailCtrl,
                                 labelText: 'Email',
                                 icon: Icons.email_outlined,
+                                enabled: false,
+                                readOnly: true,
+                                helperText: 'Muốn đổi email: dùng nút "Đổi email" ở màn Hồ sơ.',
                               ),
                               const SizedBox(height: 16),
                               _buildTextField(
                                 controller: _phoneCtrl,
                                 labelText: 'Số điện thoại',
                                 icon: Icons.phone_outlined,
+                                keyboardType: TextInputType.phone,
+                              ),
+                              const SizedBox(height: 16),
+                              _buildTextField(
+                                controller: _addressCtrl,
+                                labelText: 'Địa chỉ',
+                                icon: Icons.home_outlined,
                               ),
                               const SizedBox(height: 30),
                               SizedBox(
                                 width: double.infinity,
                                 child: ElevatedButton.icon(
-                                  onPressed: _save,
-                                  icon: const Icon(Icons.save, color: Colors.white),
+                                  onPressed: _saving ? null : _save,
+                                  icon: _saving
+                                      ? const SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
+                                  )
+                                      : const Icon(Icons.save, color: Colors.white),
                                   label: Text(
-                                    'Lưu Thay Đổi',
+                                    _saving ? 'Đang lưu...' : 'Lưu Thay Đổi',
                                     style: GoogleFonts.balsamiqSans(
                                       fontWeight: FontWeight.bold,
                                       fontSize: 18,
@@ -207,7 +248,7 @@ class _EditParentScreenState extends State<EditParentScreen> with SingleTickerPr
                                   ),
                                   style: ElevatedButton.styleFrom(
                                     padding: const EdgeInsets.symmetric(vertical: 16),
-                                    backgroundColor: const Color(0xFF8E24AA),
+                                    backgroundColor: const Color(0xFF6A1B9A),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(50),
                                     ),
@@ -219,7 +260,8 @@ class _EditParentScreenState extends State<EditParentScreen> with SingleTickerPr
                           ),
                         ),
                       ),
-                      const Spacer(), // ✨ Đẩy nội dung lên trên và lấp đầy khoảng trống
+                      const Spacer(), // Lấp đầy khoảng trống còn lại
+                      SizedBox(height: MediaQuery.of(context).padding.bottom),
                     ],
                   ),
                 ),
@@ -230,20 +272,38 @@ class _EditParentScreenState extends State<EditParentScreen> with SingleTickerPr
       ),
     );
   }
+
+  String _deriveUsername(String emailOrElse, String uid) {
+    final at = emailOrElse.indexOf('@');
+    if (at > 0) return emailOrElse.substring(0, at);
+    return 'user_${uid.substring(0, 6)}';
+  }
+
   Widget _buildTextField({
     required TextEditingController controller,
     required String labelText,
     required IconData icon,
     String? Function(String?)? validator,
+    bool enabled = true,
+    bool readOnly = false,
+    String? helperText,
+    TextInputType keyboardType = TextInputType.text,
   }) {
     return TextFormField(
       controller: controller,
       validator: validator,
+      enabled: enabled,
+      readOnly: readOnly,
+      keyboardType: keyboardType,
       style: GoogleFonts.balsamiqSans(fontSize: 16),
       decoration: InputDecoration(
         labelText: labelText,
         labelStyle: GoogleFonts.balsamiqSans(color: Colors.grey[700]),
-        prefixIcon: Icon(icon, color: const Color(0xFFE0C3FC)),
+        hintText: labelText,
+        hintStyle: GoogleFonts.balsamiqSans(color: Colors.grey[400]),
+        prefixIcon: Icon(icon, color: const Color(0xFFBA68C8)),
+        helperText: helperText,
+        helperStyle: GoogleFonts.balsamiqSans(color: Colors.grey[500]),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(25),
           borderSide: BorderSide.none,
@@ -252,7 +312,15 @@ class _EditParentScreenState extends State<EditParentScreen> with SingleTickerPr
         fillColor: Colors.grey[100],
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(25),
-          borderSide: const BorderSide(color: Color(0xFF8EC5FC), width: 2),
+          borderSide: const BorderSide(color: Color(0xFF6A1B9A), width: 2),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(25),
+          borderSide: BorderSide.none,
+        ),
+        disabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(25),
+          borderSide: BorderSide.none,
         ),
       ),
     );

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:google_nav_bar/google_nav_bar.dart';
 
 import 'screens/game_list_screen.dart';
 import 'screens/time_screen.dart';
@@ -45,48 +46,53 @@ class _HomeShellState extends State<HomeShell> {
         ),
         child: ClipRRect(
           borderRadius: const BorderRadius.vertical(top: Radius.circular(25)),
-          child: BottomNavigationBar(
-            currentIndex: _index,
-            onTap: (i) => setState(() => _index = i),
-            type: BottomNavigationBarType.fixed,
-            selectedItemColor: const Color(0xFF6A1B9A),
-            unselectedItemColor: Colors.grey[400],
-            backgroundColor: Colors.white,
-            selectedLabelStyle: GoogleFonts.balsamiqSans(
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 15.0, vertical: 8),
+            child: GNav(
+              rippleColor: Colors.grey[300]!,
+              hoverColor: Colors.grey[100]!,
+              gap: 8,
+              activeColor: Colors.white,
+              iconSize: 24,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              duration: const Duration(milliseconds: 400),
+              tabBackgroundColor: const Color(0xFF6A1B9A),
+              color: Colors.grey[600],
+              tabs: [
+                GButton(
+                  icon: Icons.videogame_asset_outlined,
+                  text: 'Game',
+                  textStyle: GoogleFonts.balsamiqSans(
+                      fontWeight: FontWeight.bold, color: Colors.white),
+                ),
+                GButton(
+                  icon: Icons.access_time_outlined,
+                  text: 'Thời gian',
+                  textStyle: GoogleFonts.balsamiqSans(
+                      fontWeight: FontWeight.bold, color: Colors.white),
+                ),
+                GButton(
+                  icon: Icons.groups_outlined,
+                  text: 'Trẻ',
+                  textStyle: GoogleFonts.balsamiqSans(
+                      fontWeight: FontWeight.bold, color: Colors.white),
+                ),
+                GButton(
+                  icon: Icons.card_giftcard_outlined,
+                  text: 'Thưởng',
+                  textStyle: GoogleFonts.balsamiqSans(
+                      fontWeight: FontWeight.bold, color: Colors.white),
+                ),
+                GButton(
+                  icon: Icons.person_outline,
+                  text: 'Hồ sơ',
+                  textStyle: GoogleFonts.balsamiqSans(
+                      fontWeight: FontWeight.bold, color: Colors.white),
+                ),
+              ],
+              selectedIndex: _index,
+              onTabChange: (i) => setState(() => _index = i),
             ),
-            unselectedLabelStyle: GoogleFonts.balsamiqSans(
-              fontWeight: FontWeight.normal,
-              fontSize: 11,
-            ),
-            items: const [
-              BottomNavigationBarItem(
-                icon: Icon(Icons.videogame_asset_outlined),
-                activeIcon: Icon(Icons.videogame_asset),
-                label: 'Game',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.access_time_outlined),
-                activeIcon: Icon(Icons.access_time),
-                label: 'Thời gian',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.groups_outlined),
-                activeIcon: Icon(Icons.groups),
-                label: 'Trẻ',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.card_giftcard_outlined),
-                activeIcon: Icon(Icons.card_giftcard),
-                label: 'Thưởng',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.person_outline),
-                activeIcon: Icon(Icons.person),
-                label: 'Hồ sơ',
-              ),
-            ],
           ),
         ),
       ),

@@ -27,7 +27,7 @@ class _HomeShellState extends State<HomeShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      extendBody: true,
+      // extendBody: true, // <- DÒNG NÀY ĐÃ BỊ XÓA ĐỂ SỬA LỖI
       body: IndexedStack(
         index: _index,
         children: _pages,

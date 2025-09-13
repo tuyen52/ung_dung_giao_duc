@@ -37,3 +37,5 @@ flutter:
     - assets/sfx/
     - assets/audio/
     - assets/images/plant/
+    - assets/images/environment/
+    - assets/images/traffic/

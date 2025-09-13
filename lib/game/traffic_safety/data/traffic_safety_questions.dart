@@ -46,14 +46,14 @@ const List<Question> trafficSafetyQuestionsPool = [
   // === CÂU HỎI CŨ ĐÃ ĐƯỢC THAY THẾ BẰNG CÂU HỎI MỚI DƯỚI ĐÂY ===
   Question(
     id: 'q_safe_to_walk', // ID mới có ý nghĩa hơn
-    situation: 'Đâu là nơi an toàn để em đi bộ?', // Nội dung câu hỏi mới, phù hợp
+    situation: ' đứa trẻ nào đang qua đường đúng cách nhất ?', // Nội dung câu hỏi mới, phù hợp
     icon: '🚶', // Thêm icon cho sinh động
     // Không có 'imagePath' để tránh gây nhầm lẫn
     options: [
-      'assets/images/sidewalk.jpg',       // Giả sử đây là ảnh vỉa hè
-      'assets/images/road_with_cars.jpg', // Giả sử đây là ảnh lòng đường
-      'assets/images/playing_on_street.jpg', // Ví dụ: ảnh trẻ em chơi dưới lòng đường
-      'assets/images/railway_track.jpg', // Ví dụ: ảnh đường ray xe lửa
+      'assets/images/traffic/crossing-properly.png',
+      'assets/images/traffic/crossing-nocrosswalk.png',
+      'assets/images/traffic/crossing-incorrectly.png',
+      'assets/images/traffic/crossing-no-traffic-lights.png',
     ],
     correctAnswerIndices: [0], // Đáp án đúng là lựa chọn đầu tiên
     type: QuestionType.imageSelection,

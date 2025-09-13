@@ -221,13 +221,13 @@ class RecycleSortPlayScreenState extends State<RecycleSortPlayScreen> {
         children: [
           Positioned.fill(
             child: Image.asset(
-              'assets/images/game_background.gif',
+              'assets/images/environment_background.png',
               fit: BoxFit.cover,
             ),
           ),
           Positioned.fill(
             child: Container(
-              color: Colors.black.withOpacity(0.3),
+              color: Colors.black.withOpacity(0.2),
             ),
           ),
           SafeArea(

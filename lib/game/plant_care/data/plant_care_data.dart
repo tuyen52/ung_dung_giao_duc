@@ -81,12 +81,26 @@ const Map<PlantIssue, String> plantIssueLabels = {
   PlantIssue.thieuChatDinhDuong: 'Thiếu dinh dưỡng',
 };
 
-// 4. Đường dẫn hình ảnh
-const Map<PlantStage, String> plantImagePaths = {
-  PlantStage.hatGiong: 'assets/images/hat_giong.jpg',
-  PlantStage.cayCon: 'assets/images/cay_con.jpg',
-  PlantStage.truongThanh: 'assets/images/truong_thanh.jpg',
-  PlantStage.raHoa: 'assets/images/ra_hoa.jpg',
+// 4. Đường dẫn hình ảnh (ĐÃ CẬP NHẬT)
+const Map<PlantType, Map<PlantStage, String>> plantImagePaths = {
+  PlantType.normal: {
+    PlantStage.hatGiong: 'assets/images/plant/normal_hat_giong.png',
+    PlantStage.cayCon: 'assets/images/plant/normal_cay_con.png',
+    PlantStage.truongThanh: 'assets/images/plant/normal_truong_thanh.png',
+    PlantStage.raHoa: 'assets/images/plant/normal_ra_hoa.png',
+  },
+  PlantType.cactus: {
+    PlantStage.hatGiong: 'assets/images/plant/cactus_hat_giong.png',
+    PlantStage.cayCon: 'assets/images/plant/cactus_cay_con.png',
+    PlantStage.truongThanh: 'assets/images/plant/cactus_truong_thanh.png',
+    PlantStage.raHoa: 'assets/images/plant/cactus_ra_hoa.png',
+  },
+  PlantType.fern: {
+    PlantStage.hatGiong: 'assets/images/plant/fern_hat_giong.jpg',
+    PlantStage.cayCon: 'assets/images/plant/fern_cay_con.png',
+    PlantStage.truongThanh: 'assets/images/plant/fern_truong_thanh.png',
+    PlantStage.raHoa: 'assets/images/plant/fern_ra_hoa.png',
+  },
 };
 
 // 5. Tên mô tả giai đoạn

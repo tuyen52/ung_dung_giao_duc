@@ -272,7 +272,7 @@ class TrafficSafetyPlayScreenState extends State<TrafficSafetyPlayScreen> {
         children: [
           Positioned.fill(
             child: Image.asset(
-              'assets/images/traffic_background.jpg',
+              'assets/images/traffic_background.png',
               fit: BoxFit.cover,
             ),
           ),

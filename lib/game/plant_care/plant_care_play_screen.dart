@@ -4,10 +4,21 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:mobileapp/game/core/game.dart';
 import 'package:mobileapp/game/core/types.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-// import 'package:audioplayers/audioplayers.dart'; // ĐÃ XÓA
 import 'data/plant_care_data.dart';
 
+// --- Game Balance Constants (Hằng số cân bằng game) ---
+const double initialStatLevel = 50.0;
+const double toolEffectAmount = 30.0;
+const double healthPenaltyAmount = 30.0;
+const double eventHealthEffect = 20.0;
+const double baseDailyDecay = 20.0;
+const double nutrientDailyDecay = 15.0;
+const double growthHealthThreshold = 80.0;
+const double unhealthyHealthThreshold = 30.0;
+const int totalDays = 3;
+
 enum AnimationTrigger { idle, healthy, unhealthy }
+
 enum PlantStage {
   hatGiong(0.4),
   cayCon(0.3),
@@ -17,8 +28,11 @@ enum PlantStage {
   final double eventProbability;
   const PlantStage(this.eventProbability);
 }
+
 enum PlantIssue { datKho, thieuAnhSang, sauBenh, quaTai, thieuChatDinhDuong }
+
 enum CareToolType { nuoc, anhSang, thuocTruSau, catTia, phanBon }
+
 class CareTool {
   final String label;
   final IconData icon;
@@ -28,7 +42,6 @@ class CareTool {
   const CareTool(this.label, this.icon, this.type, this.fixes, this.explanation);
 }
 
-// MODIFIED: Plant class now includes type and species name
 class Plant {
   final PlantType type;
   String speciesName;
@@ -66,15 +79,16 @@ class PlantCarePlayScreen extends StatefulWidget {
 }
 
 class PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
+  // Game State
   final _rnd = Random();
-  final _plants = <Plant>[];
+  final List<Plant> _plants = [];
   late Map<CareToolType, int> _resources;
   int correctActions = 0;
   int wrongActions = 0;
   int _currentDay = 1;
-  final int _totalDays = 3;
-  // final AudioPlayer _audioPlayer = AudioPlayer(); // ĐÃ XÓA
   int? _selectedPlantIndex;
+
+  // --- 1. Game Lifecycle Methods ---
 
   @override
   void initState() {
@@ -83,38 +97,29 @@ class PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
     _initializeGame();
   }
 
-  // void _playSound(String soundFile) { // ĐÃ XÓA
-  //   _audioPlayer.play(AssetSource('sfx/$soundFile'));
-  // }
-
-  @override
-  void dispose() {
-    // _audioPlayer.dispose(); // ĐÃ XÓA
-    super.dispose();
-  }
-
-  // MODIFIED: Initialize a diverse garden of plants
   void _initializeGame() {
     _plants.clear();
     final stages = PlantStage.values;
-    // Create a list of different plant types to spawn
     final plantTypesToSpawn = [PlantType.normal, PlantType.cactus, PlantType.fern, PlantType.normal];
-    plantTypesToSpawn.shuffle(_rnd); // Randomize plant positions
+    plantTypesToSpawn.shuffle(_rnd);
 
     for (final type in plantTypesToSpawn) {
       final species = plantSpeciesData[type]!;
       final stage = stages[0];
-      _plants.add(Plant(
+
+      final newPlant = Plant(
         type: type,
         speciesName: species.name,
         label: plantStageCreativeNames[stage]!,
         stage: stage,
-        waterLevel: 50.0,
-        lightLevel: 50.0,
-        nutrientLevel: 50.0,
-        health: 100.0,
+        waterLevel: initialStatLevel,
+        lightLevel: initialStatLevel,
+        nutrientLevel: initialStatLevel,
+        health: 0,
         isCompleted: false,
-      ));
+      );
+      newPlant.health = _calculateHealth(newPlant);
+      _plants.add(newPlant);
     }
 
     _resources = {
@@ -125,20 +130,153 @@ class PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
       CareToolType.catTia: 10 + widget.game.difficulty,
     };
     _selectedPlantIndex = null;
-    setState(() {});
+    if (mounted) {
+      setState(() {});
+    }
   }
+
+  // --- 2. Player Action Methods ---
+
+  // ==================== HÀM MỚI ĐỂ HIỂN THỊ THÔNG BÁO Ở TRÊN ====================
+  void _showTopSnackBar(String message, Color backgroundColor) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    final snackBar = SnackBar(
+      content: Text(message, textAlign: TextAlign.center),
+      backgroundColor: backgroundColor,
+      behavior: SnackBarBehavior.floating, // Quan trọng: để SnackBar nổi lên
+      margin: EdgeInsets.only(
+        bottom: MediaQuery.of(context).size.height - 150, // Đẩy SnackBar lên trên
+        left: 20,
+        right: 20,
+      ),
+      duration: const Duration(seconds: 2),
+    );
+    ScaffoldMessenger.of(context).showSnackBar(snackBar);
+  }
+  // ===========================================================================
+
 
   void _selectPlant(int index) {
     setState(() {
       _selectedPlantIndex = index;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Đã chọn cây "${_plants[index].speciesName}"!'),
-        backgroundColor: Colors.blue,
-        duration: const Duration(seconds: 1),
-      ),
-    );
+    // ĐÃ CẬP NHẬT: Sử dụng hàm mới
+    _showTopSnackBar('Đã chọn cây "${_plants[index].speciesName}"!', Colors.blue);
+  }
+
+  void _endDay() {
+    setState(() {
+      for (var plant in _plants) {
+        if (plant.isCompleted) continue;
+
+        final species = plantSpeciesData[plant.type]!;
+
+        plant.waterLevel = (plant.waterLevel - (baseDailyDecay * species.waterNeed)).clamp(0, 100);
+        plant.lightLevel = (plant.lightLevel - (baseDailyDecay * species.lightNeed)).clamp(0, 100);
+        plant.nutrientLevel = (plant.nutrientLevel - nutrientDailyDecay).clamp(0, 100);
+
+        _updatePlantStatus(plant);
+      }
+
+      _currentDay++;
+      _selectedPlantIndex = null;
+
+      if (_currentDay > totalDays) {
+        widget.onFinish(correctActions, wrongActions);
+      } else {
+        _showDaySummary();
+      }
+    });
+  }
+
+  // --- 3. Core Game Logic ---
+
+  double _calculateHealth(Plant plant) {
+    final average = (plant.waterLevel + plant.lightLevel + plant.nutrientLevel) / 3;
+    return average.clamp(0.0, 100.0);
+  }
+
+  void _updatePlantStatus(Plant plant, {bool recalculateHealth = true}) {
+    if (recalculateHealth) {
+      plant.health = _calculateHealth(plant);
+    }
+
+    if (plant.health >= growthHealthThreshold && plant.stage != PlantStage.raHoa) {
+      plant.stage = PlantStage.values[plant.stage.index + 1];
+      plant.label = plantStageCreativeNames[plant.stage]!;
+      plant.animationTrigger = AnimationTrigger.healthy;
+      plant.animationCounter++;
+    } else if (plant.health < unhealthyHealthThreshold) {
+      plant.animationTrigger = AnimationTrigger.unhealthy;
+      plant.animationCounter++;
+    }
+
+    if (plant.stage == PlantStage.raHoa && plant.health >= growthHealthThreshold) {
+      plant.isCompleted = true;
+    }
+  }
+
+  void _applyTool(Plant plant, CareToolType toolType) {
+    if (_resources[toolType]! <= 0) {
+      // ĐÃ CẬP NHẬT: Sử dụng hàm mới
+      _showTopSnackBar('Hết ${plantCareTools.firstWhere((t) => t.type == toolType).label}!', Colors.orange);
+      return;
+    }
+
+    final tool = plantCareTools.firstWhere((t) => t.type == toolType);
+    final species = plantSpeciesData[plant.type]!;
+
+    setState(() {
+      _resources[toolType] = _resources[toolType]! - 1;
+
+      bool actionWasCorrect = true;
+
+      switch (toolType) {
+        case CareToolType.nuoc:
+          if (plant.waterLevel > species.waterTolerance) {
+            plant.health = (plant.health - healthPenaltyAmount).clamp(0, 100);
+            wrongActions++;
+            actionWasCorrect = false;
+            // ĐÃ CẬP NHẬT: Sử dụng hàm mới
+            _showTopSnackBar('${species.name} không ưa nhiều nước! Cây bị úng.', Colors.red);
+          } else {
+            plant.waterLevel = (plant.waterLevel + toolEffectAmount).clamp(0, 100);
+          }
+          break;
+        case CareToolType.anhSang:
+          if (plant.lightLevel > species.lightTolerance) {
+            plant.health = (plant.health - healthPenaltyAmount).clamp(0, 100);
+            wrongActions++;
+            actionWasCorrect = false;
+            // ĐÃ CẬP NHẬT: Sử dụng hàm mới
+            _showTopSnackBar('${species.name} không thích nắng gắt! Cây bị cháy nắng.', Colors.red);
+          } else {
+            plant.lightLevel = (plant.lightLevel + toolEffectAmount).clamp(0, 100);
+          }
+          break;
+        case CareToolType.phanBon:
+          plant.nutrientLevel = (plant.nutrientLevel + toolEffectAmount).clamp(0, 100);
+          break;
+        case CareToolType.thuocTruSau:
+        case CareToolType.catTia:
+          break;
+      }
+
+      if (actionWasCorrect) {
+        correctActions++;
+        // ĐÃ CẬP NHẬT: Sử dụng hàm mới
+        _showTopSnackBar('Đã dùng ${tool.label} cho ${plant.speciesName}! ${tool.explanation}', Colors.green);
+      }
+
+      if (actionWasCorrect) {
+        _updatePlantStatus(plant, recalculateHealth: true);
+      } else {
+        _updatePlantStatus(plant, recalculateHealth: false);
+      }
+
+      _triggerRandomEvent(plant);
+    });
   }
 
   void _triggerRandomEvent(Plant plant) {
@@ -148,9 +286,10 @@ class PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
     if (possibleIssues == null || possibleIssues.isEmpty) return;
 
     final issue = possibleIssues[_rnd.nextInt(possibleIssues.length)];
-
     _showPlantIssueEvent(plant, issue);
   }
+
+  // --- 4. UI and Dialog Methods ---
 
   void _showPlantIssueEvent(Plant plant, PlantIssue issue) {
     final issueLabel = plantIssueLabels[issue] ?? "Vấn đề không xác định";
@@ -161,35 +300,25 @@ class PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         title: Text('Sự kiện: $issueLabel'),
-        content: Text('Cây ${plant.speciesName} đang gặp vấn đề "$issueLabel". Chọn công cụ phù hợp để cứu cây. (Gợi ý: ${correctTool.label})'),
+        content: Text('Cây ${plant.speciesName} đang gặp vấn đề. Chọn công cụ phù hợp để cứu cây.'),
         actions: plantCareTools.map((tool) => TextButton(
           onPressed: () {
             Navigator.pop(context);
             if (tool.type == correctTool.type && _resources[tool.type]! > 0) {
               setState(() {
-                plant.health = (plant.health + 20).clamp(0, 100);
+                plant.health = (plant.health + eventHealthEffect).clamp(0, 100);
                 correctActions += 5;
-                _resources[tool.type] = (_resources[tool.type]! - 1).clamp(0, 100);
+                _resources[tool.type] = _resources[tool.type]! - 1;
               });
-              // _playSound('correct.mp3'); // ĐÃ XÓA
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Tuyệt vời! Cây đã được cứu khỏi $issueLabel! (+5 điểm)'),
-                  backgroundColor: Colors.green,
-                ),
-              );
+              // ĐÃ CẬP NHẬT: Sử dụng hàm mới
+              _showTopSnackBar('Tuyệt vời! Cây đã được cứu khỏi $issueLabel!', Colors.green);
             } else {
               setState(() {
-                plant.health = (plant.health - 20).clamp(0, 100);
+                plant.health = (plant.health - eventHealthEffect).clamp(0, 100);
                 wrongActions++;
               });
-              // _playSound('incorrect.mp3'); // ĐÃ XÓA
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Sai công cụ! Cây bị ảnh hưởng bởi $issueLabel.'),
-                  backgroundColor: Colors.red,
-                ),
-              );
+              // ĐÃ CẬP NHẬT: Sử dụng hàm mới
+              _showTopSnackBar('Sai công cụ! Cây bị ảnh hưởng bởi $issueLabel.', Colors.red);
             }
           },
           child: Text(tool.label),
@@ -198,150 +327,15 @@ class PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
     );
   }
 
-  // MODIFIED: Apply tool logic now considers the plant's species
-  void _applyTool(Plant plant, CareToolType toolType) {
-    if (_resources[toolType]! <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Hết ${plantCareTools.firstWhere((t) => t.type == toolType).label}!'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
-    final tool = plantCareTools.firstWhere((t) => t.type == toolType);
-    final species = plantSpeciesData[plant.type]!;
-
-    setState(() {
-      _resources[toolType] = (_resources[toolType]! - 1).clamp(0, 100);
-
-      // Handle special cases for different species
-      switch (toolType) {
-        case CareToolType.nuoc:
-          if (plant.waterLevel > species.waterTolerance) {
-            plant.health = (plant.health - 30).clamp(0, 100);
-            wrongActions++;
-            // _playSound('incorrect.mp3'); // ĐÃ XÓA
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text('${species.name} không ưa nhiều nước! Cây bị úng nước.'),
-              backgroundColor: Colors.red,
-            ));
-            return; // Exit without adding more water
-          }
-          plant.waterLevel = (plant.waterLevel + 30).clamp(0, 100);
-          break;
-        case CareToolType.anhSang:
-          if (plant.lightLevel > species.lightTolerance) {
-            plant.health = (plant.health - 30).clamp(0, 100);
-            wrongActions++;
-            // _playSound('incorrect.mp3'); // ĐÃ XÓA
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text('${species.name} không thích nắng gắt! Cây bị cháy nắng.'),
-              backgroundColor: Colors.red,
-            ));
-            return; // Exit without adding more light
-          }
-          plant.lightLevel = (plant.lightLevel + 30).clamp(0, 100);
-          break;
-        case CareToolType.phanBon:
-          plant.nutrientLevel = (plant.nutrientLevel + 30).clamp(0, 100);
-          break;
-        case CareToolType.thuocTruSau:
-          plant.health = (plant.health + 20).clamp(0, 100);
-          break;
-        case CareToolType.catTia:
-          if (plant.stage == PlantStage.truongThanh || plant.stage == PlantStage.raHoa) {
-            plant.health = (plant.health + 20).clamp(0, 100);
-          } else {
-            plant.health = (plant.health - 20).clamp(0, 100);
-            wrongActions++;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Tỉa cành không phù hợp với ${plantStageDescriptiveNames[plant.stage]}!'),
-                backgroundColor: Colors.red,
-              ),
-            );
-            return;
-          }
-          break;
-      }
-
-      plant.health = ((plant.waterLevel + plant.lightLevel + plant.nutrientLevel) / 3).clamp(0, 100);
-      correctActions++;
-      // _playSound('correct.mp3'); // ĐÃ XÓA
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Đã sử dụng ${tool.label} cho ${plant.speciesName}! ${tool.explanation}'),
-          backgroundColor: Colors.green,
-        ),
-      );
-
-      if (plant.health >= 80 && plant.stage != PlantStage.raHoa) {
-        plant.stage = PlantStage.values[plant.stage.index + 1];
-        plant.label = plantStageCreativeNames[plant.stage]!;
-        plant.animationTrigger = AnimationTrigger.healthy;
-        plant.animationCounter++;
-      } else if (plant.health < 30) {
-        plant.animationTrigger = AnimationTrigger.unhealthy;
-        plant.animationCounter++;
-      }
-    });
-
-    _triggerRandomEvent(plant);
-  }
-
-  // MODIFIED: Resource decay at the end of the day is now based on species needs
-  void _endDay() {
-    setState(() {
-      for (int i = 0; i < _plants.length; i++) {
-        var plant = _plants[i];
-        final species = plantSpeciesData[plant.type]!;
-
-        if (!plant.isCompleted) {
-          // Apply species-specific needs multipliers
-          plant.waterLevel = (plant.waterLevel - (20 * species.waterNeed)).clamp(0, 100);
-          plant.lightLevel = (plant.lightLevel - (20 * species.lightNeed)).clamp(0, 100);
-          plant.nutrientLevel = (plant.nutrientLevel - 15).clamp(0, 100); // Nutrient need is same for all for now
-
-          plant.health = ((plant.waterLevel + plant.lightLevel + plant.nutrientLevel) / 3).clamp(0, 100);
-
-          if (plant.health >= 80 && plant.stage != PlantStage.raHoa) {
-            plant.stage = PlantStage.values[plant.stage.index + 1];
-            plant.label = plantStageCreativeNames[plant.stage]!;
-            plant.animationTrigger = AnimationTrigger.healthy;
-            plant.animationCounter++;
-          } else if (plant.health < 30) {
-            plant.animationTrigger = AnimationTrigger.unhealthy;
-            plant.animationCounter++;
-          }
-          if (plant.stage == PlantStage.raHoa && plant.health >= 80) {
-            plant.isCompleted = true;
-          }
-        }
-      }
-      _currentDay++;
-      _selectedPlantIndex = null;
-      if (_currentDay > _totalDays) {
-        widget.onFinish(correctActions, wrongActions);
-      } else {
-        _showDaySummary();
-      }
-    });
-  }
-
   void _showDaySummary() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Kết thúc ngày ${_currentDay -1}'),
-        content: Text('Bắt đầu ngày mới! Tiếp tục chăm sóc để cây ra hoa!'),
+        title: Text('Kết thúc ngày ${_currentDay - 1}'),
+        content: const Text('Bắt đầu ngày mới! Tiếp tục chăm sóc để cây ra hoa!'),
         actions: [
           TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              setState(() {});
-            },
+            onPressed: () => Navigator.pop(context),
             child: const Text('Tiếp tục'),
           ),
         ],
@@ -349,57 +343,20 @@ class PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
     );
   }
 
-  void _showHandbook() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Sổ Tay Chăm Sóc'),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Hướng dẫn chăm sóc cây:'),
-              ...plantCareTools.map(
-                    (tool) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8.0),
-                  child: Text('• ${tool.label}: ${tool.explanation}'),
-                ),
-              ),
-              const Text('\nLưu ý đặc biệt:'),
-              const Text('• Xương rồng cần nhiều sáng, không ưa nhiều nước.'),
-              const Text('• Dương xỉ cần nhiều nước, không thích nắng gắt.'),
-              const Text('\nLưu ý chung:'),
-              const Text('• Giữ nước, ánh sáng, dinh dưỡng trên 50 để cây khỏe.'),
-              const Text('• Cây đạt sức khỏe 80 sẽ phát triển lên giai đoạn tiếp theo.'),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Đã hiểu'),
-          ),
-        ],
-      ),
-    );
-  }
+  // --- GHI CHÚ: ĐÃ XÓA HÀM _showHandbook() KHÔNG CÒN ĐƯỢC SỬ DỤNG ---
 
+  // --- 5. Build Method ---
   @override
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.of(context).size.height;
     final fontSize = screenHeight * 0.04;
 
     return Scaffold(
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showHandbook,
-        tooltip: 'Sổ tay',
-        child: const Icon(Icons.menu_book),
-      ),
+      // --- GHI CHÚ: ĐÃ XÓA floatingActionButton TẠI ĐÂY ---
       body: Container(
         decoration: const BoxDecoration(
           image: DecorationImage(
-            image: AssetImage("assets/images/garden_background.jpg"),
+            image: AssetImage("assets/images/garden_background.png"),
             fit: BoxFit.cover,
           ),
         ),
@@ -408,47 +365,29 @@ class PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
             SafeArea(
               bottom: false,
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16.0),
+                padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 8.0),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: plantCareTools.map((tool) {
-                    return Column(
-                      children: [
-                        IconButton(
-                          onPressed: _resources[tool.type]! > 0 && _selectedPlantIndex != null
-                              ? () {
-                            setState(() {
-                              _applyTool(_plants[_selectedPlantIndex!], tool.type);
-                            });
-                          }
-                              : null,
-                          icon: Icon(tool.icon, size: 32, color: _resources[tool.type]! > 0 ? Colors.white : Colors.grey.shade600),
-                        ),
-                        Text(
-                          _resources[tool.type].toString(),
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: _resources[tool.type]! > 0 ? Colors.white : Colors.grey.shade600,
-                            shadows: [Shadow(blurRadius: 2, color: Colors.black.withOpacity(0.5))],
-                          ),
-                        ),
-                      ],
-                    );
-                  }).toList(),
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Chip(
+                      backgroundColor: Colors.white.withOpacity(0.9),
+                      avatar: const Icon(Icons.star),
+                      label: Text('Ngày: $_currentDay/$totalDays'),
+                    ),
+                    FilledButton(
+                      onPressed: _endDay,
+                      child: const Text('Kết thúc ngày'),
+                    ),
+                  ],
                 ),
               ),
             ),
-            Chip(
-              backgroundColor: Colors.white.withOpacity(0.8),
-              avatar: const Icon(Icons.star),
-              label: Text('Ngày: $_currentDay/$_totalDays'),
-            ),
             if (_selectedPlantIndex != null)
               Padding(
-                padding: const EdgeInsets.all(8.0),
+                padding: const EdgeInsets.symmetric(horizontal: 8.0),
                 child: Text(
                   'Đang chăm sóc: ${_plants[_selectedPlantIndex!].speciesName}',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white, shadows: [Shadow(blurRadius: 2, color: Colors.black)]),
                 ),
               ),
             Expanded(
@@ -474,10 +413,29 @@ class PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
             SafeArea(
               top: false,
               child: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: FilledButton(
-                  onPressed: _endDay,
-                  child: const Text('Kết thúc ngày'),
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: plantCareTools.map((tool) {
+                    final isEnabled = _resources[tool.type]! > 0 && _selectedPlantIndex != null;
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          onPressed: isEnabled ? () => _applyTool(_plants[_selectedPlantIndex!], tool.type) : null,
+                          icon: Icon(tool.icon, size: 32, color: isEnabled ? Colors.white : Colors.grey.shade600),
+                        ),
+                        Text(
+                          _resources[tool.type].toString(),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: _resources[tool.type]! > 0 ? Colors.white : Colors.grey.shade600,
+                            shadows: [Shadow(blurRadius: 2, color: Colors.black.withOpacity(0.5))],
+                          ),
+                        ),
+                      ],
+                    );
+                  }).toList(),
                 ),
               ),
             ),
@@ -488,7 +446,7 @@ class PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
   }
 }
 
-// MODIFIED: PlantCard now displays the species name
+// Lớp PlantCard không thay đổi
 class PlantCard extends StatelessWidget {
   final Plant plant;
   final double fontSize;
@@ -498,8 +456,6 @@ class PlantCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isHealthy = plant.health >= 80;
-
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
@@ -508,34 +464,30 @@ class PlantCard extends StatelessWidget {
             color: Colors.black.withOpacity(0.2),
             blurRadius: 10,
             spreadRadius: 2,
-            offset: const Offset(0, 5),
           ),
         ],
-        border: isSelected ? Border.all(color: Colors.yellow, width: 4) : null,
+        border: isSelected ? Border.all(color: Colors.yellow.shade600, width: 4) : null,
       ),
       child: Card(
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: isHealthy ? Colors.green.shade400 : Colors.transparent, width: 4),
         ),
-        color: plant.isCompleted ? const Color(0xFFE8F5E9) : (plant.health < 30 ? const Color(0xFFFFF3E0) : Colors.white),
+        color: plant.isCompleted ? const Color(0xFFE8F5E9) : (plant.health < unhealthyHealthThreshold ? const Color(0xFFFFF3E0) : Colors.white),
         clipBehavior: Clip.antiAlias,
         child: Padding(
           padding: const EdgeInsets.all(8.0),
           child: SingleChildScrollView(
             child: Column(
-              mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 Image.asset(
-                  plantImagePaths[plant.stage]!,
+                  plantImagePaths[plant.type]![plant.stage]!,
                   height: fontSize * 2,
                   fit: BoxFit.contain,
                   errorBuilder: (context, error, stackTrace) => const Icon(Icons.error, color: Colors.red),
                 ),
                 const SizedBox(height: 4),
-                // Display Species Name
                 Text(
                   plant.speciesName,
                   textAlign: TextAlign.center,
@@ -543,7 +495,7 @@ class PlantCard extends StatelessWidget {
                 ),
                 Text(
                   plantStageDescriptiveNames[plant.stage]!,
-                  style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+                  style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.black54),
                 ),
                 const SizedBox(height: 8),
                 Column(
@@ -555,10 +507,13 @@ class PlantCard extends StatelessWidget {
                   ],
                 ),
                 if (plant.isCompleted)
-                  Icon(
-                    Icons.check_circle,
-                    color: Colors.green.shade400,
-                    size: 36,
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: Icon(
+                      Icons.check_circle,
+                      color: Colors.green.shade400,
+                      size: 36,
+                    ),
                   ),
               ],
             ),
@@ -590,16 +545,17 @@ class PlantCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 2.0),
       child: Row(
         children: [
-          SizedBox(width: 80, child: Text('$label:', style: const TextStyle(fontSize: 12))),
+          SizedBox(width: 70, child: Text('$label:', style: const TextStyle(fontSize: 12))),
           Expanded(
             child: LinearProgressIndicator(
               value: value / 100,
               color: color,
               backgroundColor: Colors.grey.shade300,
+              minHeight: 6,
+              borderRadius: BorderRadius.circular(3),
             ),
           ),
-          const SizedBox(width: 8),
-          Text('${value.toInt()}%'),
+          SizedBox(width: 40, child: Text('${value.toInt()}%', textAlign: TextAlign.right,)),
         ],
       ),
     );

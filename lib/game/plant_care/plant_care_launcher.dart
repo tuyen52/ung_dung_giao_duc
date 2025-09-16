@@ -1,3 +1,4 @@
+// lib/game/plant_care/plant_care_game_launcher.dart
 import 'package:flutter/material.dart';
 
 // Game runtime
@@ -45,7 +46,8 @@ class _PlantCareGameLauncherState extends State<PlantCareGameLauncher> {
   };
 
   Future<void> _finishAndSave(int correct, int wrong) async {
-    final raw = correct * 3 - wrong * 3;
+    // Chấm điểm: chỉ cộng khi “thiếu -> vào tối ưu”, sai khi “đã đủ vẫn làm / vượt tolerance”
+    final raw = correct * 3 - wrong * 1; // phạt nhẹ để khuyến khích thử
     final score = raw < 0 ? 0 : raw;
 
     await GameSessionService().saveAndReward(
@@ -94,7 +96,7 @@ class _PlantCareGameLauncherState extends State<PlantCareGameLauncher> {
       onFinishAndExit: () {
         final state = _playScreenKey.currentState;
         if (state != null) {
-          _finishAndSave(state.correctActions, state.wrongActions); // Sử dụng correctActions/wrongActions
+          _finishAndSave(state.correctActions, state.wrongActions);
         } else {
           Navigator.of(context).pop();
         }
@@ -111,32 +113,29 @@ class _PlantCareGameLauncherState extends State<PlantCareGameLauncher> {
             ),
             SizedBox(height: 8),
             Text(
-              '• Giữ các thanh trạng thái (Nước, Ánh sáng, Dinh dưỡng) của cây luôn ở mức cao để cây khỏe mạnh và phát triển qua các giai đoạn.',
+              '• Giữ các thanh trạng thái (Nước, Ánh sáng, Dinh dưỡng) trong VÙNG TỐI ƯU để cây khỏe mạnh và phát triển qua các giai đoạn.',
               style: TextStyle(color: Colors.white70, fontSize: 16.0),
             ),
             SizedBox(height: 16),
             Text(
-              'Lưu ý đặc biệt:',
+              'Lưu ý theo loài:',
               style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18.0),
             ),
             SizedBox(height: 8),
-            Text(
-              '• 🌵 Xương rồng: Cần RẤT NHIỀU ánh sáng nhưng không ưa nhiều nước.',
-              style: TextStyle(color: Colors.white70, fontSize: 16.0),
-            ),
-            SizedBox(height: 8),
-            Text(
-              '• 🌿 Dương xỉ: Cần RẤT NHIỀU nước nhưng không thích ánh sáng gắt.',
-              style: TextStyle(color: Colors.white70, fontSize: 16.0),
-            ),
+            Text('• 🌵 Xương rồng: Nước 30–60, Sáng 70–90 (nhiều nước dễ úng).',
+                style: TextStyle(color: Colors.white70, fontSize: 16.0)),
+            SizedBox(height: 4),
+            Text('• 🌿 Dương xỉ: Nước 70–90, Sáng 40–70 (nắng gắt dễ cháy lá).',
+                style: TextStyle(color: Colors.white70, fontSize: 16.0)),
             SizedBox(height: 16),
             Text(
-              'Sự kiện ngẫu nhiên:',
+              'Cách tính điểm:',
               style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18.0),
             ),
             SizedBox(height: 8),
             Text(
-              '• Đôi khi cây sẽ gặp các vấn đề đột xuất (sâu bệnh, đất khô...). Hãy chọn đúng công cụ để khắc phục.',
+              '• Chỉ cộng điểm khi bạn đưa chỉ số từ mức THIẾU vào VÙNG TỐI ƯU. '
+                  'Nếu đã đủ mà vẫn tiếp tục, hoặc làm vượt ngưỡng chịu đựng → bị tính sai.',
               style: TextStyle(color: Colors.white70, fontSize: 16.0),
             ),
           ],

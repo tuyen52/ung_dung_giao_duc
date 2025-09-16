@@ -1,94 +1,118 @@
+// lib/game/plant_care/plant_care_play_screen.dart
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
 import 'package:mobileapp/game/core/game.dart';
-import 'package:mobileapp/game/core/types.dart';
-import 'package:flutter_animate/flutter_animate.dart';
+
 import 'data/plant_care_data.dart';
+import 'core/balance.dart';
+import 'models/weather.dart';
+import 'models/quests.dart';
+import 'models/plant_entity.dart';
+import 'widgets/plant_card.dart';
+import 'widgets/day_summary_dialog.dart';
 
-// --- Game Balance Constants (Hằng số cân bằng game) ---
-const double initialStatLevel = 50.0;
-const double toolEffectAmount = 30.0;
-const double healthPenaltyAmount = 30.0;
-const double eventHealthEffect = 20.0;
-const double baseDailyDecay = 20.0;
-const double nutrientDailyDecay = 15.0;
-const double growthHealthThreshold = 80.0;
-const double unhealthyHealthThreshold = 30.0;
-const int totalDays = 3;
+/// ================== Cấu hình độ khó (5 ngày cố định) ==================
+class DifficultyConfig {
+  final double toolMul, decayMulWater, decayMulLight, decayMulNutrient;
+  final int growthMul, initStat;
+  final int resNuoc, resSang, resPhan, resSau, resTia;
+  final double pestChance, overgrownChance;
+  final double wSunny, wCloudy, wRainy; // phân bố thời tiết
 
-enum AnimationTrigger { idle, healthy, unhealthy }
-
-enum PlantStage {
-  hatGiong(0.4),
-  cayCon(0.3),
-  truongThanh(0.25),
-  raHoa(0.2);
-
-  final double eventProbability;
-  const PlantStage(this.eventProbability);
-}
-
-enum PlantIssue { datKho, thieuAnhSang, sauBenh, quaTai, thieuChatDinhDuong }
-
-enum CareToolType { nuoc, anhSang, thuocTruSau, catTia, phanBon }
-
-class CareTool {
-  final String label;
-  final IconData icon;
-  final CareToolType type;
-  final PlantIssue fixes;
-  final String explanation;
-  const CareTool(this.label, this.icon, this.type, this.fixes, this.explanation);
-}
-
-class Plant {
-  final PlantType type;
-  String speciesName;
-  String label;
-  PlantStage stage;
-  double waterLevel;
-  double lightLevel;
-  double nutrientLevel;
-  double health;
-  bool isCompleted;
-  AnimationTrigger animationTrigger = AnimationTrigger.idle;
-  int animationCounter = 0;
-
-  Plant({
-    required this.type,
-    required this.speciesName,
-    required this.label,
-    required this.stage,
-    required this.waterLevel,
-    required this.lightLevel,
-    required this.nutrientLevel,
-    required this.health,
-    required this.isCompleted,
+  const DifficultyConfig({
+    required this.toolMul,
+    required this.decayMulWater,
+    required this.decayMulLight,
+    required this.decayMulNutrient,
+    required this.growthMul,
+    required this.initStat,
+    required this.resNuoc,
+    required this.resSang,
+    required this.resPhan,
+    required this.resSau,
+    required this.resTia,
+    required this.pestChance,
+    required this.overgrownChance,
+    required this.wSunny,
+    required this.wCloudy,
+    required this.wRainy,
   });
 }
 
+DifficultyConfig _cfgFor(int d) {
+  if (d <= 1) {
+    // Dễ
+    return const DifficultyConfig(
+      toolMul: 1.20, decayMulWater: 0.90, decayMulLight: 0.90, decayMulNutrient: 0.90,
+      growthMul: 7, initStat: 60,
+      resNuoc: 24, resSang: 18, resPhan: 15, resSau: 12, resTia: 12,
+      pestChance: 0.10, overgrownChance: 0.08,
+      wSunny: 0.33, wCloudy: 0.34, wRainy: 0.33,
+    );
+  } else if (d == 2) {
+    // Vừa (mặc định)
+    return const DifficultyConfig(
+      toolMul: 1.00, decayMulWater: 1.00, decayMulLight: 1.00, decayMulNutrient: 1.00,
+      growthMul: 6, initStat: 50,
+      resNuoc: 22, resSang: 16, resPhan: 13, resSau: 11, resTia: 11,
+      pestChance: 0.18, overgrownChance: 0.15,
+      wSunny: 0.40, wCloudy: 0.30, wRainy: 0.30,
+    );
+  } else {
+    // Khó
+    return const DifficultyConfig(
+      toolMul: 0.85, decayMulWater: 1.10, decayMulLight: 1.10, decayMulNutrient: 1.10,
+      growthMul: 5, initStat: 45,
+      resNuoc: 20, resSang: 14, resPhan: 12, resSau: 10, resTia: 10,
+      pestChance: 0.25, overgrownChance: 0.22,
+      wSunny: 0.45, wCloudy: 0.30, wRainy: 0.25,
+    );
+  }
+}
+
+Weather _rollWeatherWeighted(Random rnd, DifficultyConfig c) {
+  final r = rnd.nextDouble();
+  if (r < c.wSunny) return Weather.sunny;
+  if (r < c.wSunny + c.wCloudy) return Weather.cloudy;
+  return Weather.rainy;
+}
+
+/// ================== Màn chơi ==================
 class PlantCarePlayScreen extends StatefulWidget {
   final Game game;
-  final FinishCallback onFinish;
+  final void Function(int correct, int wrong) onFinish;
 
-  const PlantCarePlayScreen({super.key, required this.game, required this.onFinish});
+  const PlantCarePlayScreen({
+    super.key,
+    required this.game,
+    required this.onFinish,
+  });
 
   @override
   State<PlantCarePlayScreen> createState() => PlantCarePlayScreenState();
 }
 
 class PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
-  // Game State
   final _rnd = Random();
   final List<Plant> _plants = [];
   late Map<CareToolType, int> _resources;
+
   int correctActions = 0;
   int wrongActions = 0;
   int _currentDay = 1;
   int? _selectedPlantIndex;
 
-  // --- 1. Game Lifecycle Methods ---
+  // tổng sticker theo ngày
+  final Map<Sticker, int> _stickerBag = {
+    Sticker.gold: 0, Sticker.silver: 0, Sticker.bronze: 0, Sticker.none: 0,
+  };
+
+  // thời tiết ngày hiện tại
+  Weather _todayWeather = Weather.sunny;
+
+  DifficultyConfig get _cfg => _cfgFor(widget.game.difficulty);
 
   @override
   void initState() {
@@ -99,127 +123,206 @@ class PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
 
   void _initializeGame() {
     _plants.clear();
-    final stages = PlantStage.values;
-    final plantTypesToSpawn = [PlantType.normal, PlantType.cactus, PlantType.fern, PlantType.normal];
-    plantTypesToSpawn.shuffle(_rnd);
+    final cfg = _cfg;
+
+    final plantTypesToSpawn = [
+      PlantType.normal, PlantType.cactus, PlantType.fern, PlantType.normal
+    ]..shuffle(_rnd);
 
     for (final type in plantTypesToSpawn) {
       final species = plantSpeciesData[type]!;
-      final stage = stages[0];
+      final stage = PlantStage.hatGiong;
 
-      final newPlant = Plant(
+      final p = Plant(
         type: type,
         speciesName: species.name,
         label: plantStageCreativeNames[stage]!,
         stage: stage,
-        waterLevel: initialStatLevel,
-        lightLevel: initialStatLevel,
-        nutrientLevel: initialStatLevel,
-        health: 0,
-        isCompleted: false,
+        waterLevel: cfg.initStat.toDouble(),
+        lightLevel: cfg.initStat.toDouble(),
+        nutrientLevel: cfg.initStat.toDouble(),
       );
-      newPlant.health = _calculateHealth(newPlant);
-      _plants.add(newPlant);
+      p.quests = generateQuestsForStage(stage);
+      _plants.add(p);
     }
 
     _resources = {
-      CareToolType.nuoc: 20 + widget.game.difficulty * 2,
-      CareToolType.anhSang: 15 + widget.game.difficulty,
-      CareToolType.phanBon: 12 + widget.game.difficulty,
-      CareToolType.thuocTruSau: 10 + widget.game.difficulty,
-      CareToolType.catTia: 10 + widget.game.difficulty,
+      CareToolType.nuoc: cfg.resNuoc,
+      CareToolType.anhSang: cfg.resSang,
+      CareToolType.phanBon: cfg.resPhan,
+      CareToolType.thuocTruSau: cfg.resSau,
+      CareToolType.catTia: cfg.resTia,
     };
+
     _selectedPlantIndex = null;
-    if (mounted) {
-      setState(() {});
-    }
+    _todayWeather = _rollWeatherWeighted(_rnd, cfg);
+
+    setState(() {});
   }
 
-  // --- 2. Player Action Methods ---
-
-  // ==================== HÀM MỚI ĐỂ HIỂN THỊ THÔNG BÁO Ở TRÊN ====================
+  // ===== UI helper: snack ở trên =====
   void _showTopSnackBar(String message, Color backgroundColor) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     final snackBar = SnackBar(
       content: Text(message, textAlign: TextAlign.center),
       backgroundColor: backgroundColor,
-      behavior: SnackBarBehavior.floating, // Quan trọng: để SnackBar nổi lên
+      behavior: SnackBarBehavior.floating,
       margin: EdgeInsets.only(
-        bottom: MediaQuery.of(context).size.height - 150, // Đẩy SnackBar lên trên
-        left: 20,
-        right: 20,
+        bottom: MediaQuery.of(context).size.height - 150,
+        left: 20, right: 20,
       ),
       duration: const Duration(seconds: 2),
     );
     ScaffoldMessenger.of(context).showSnackBar(snackBar);
   }
-  // ===========================================================================
-
 
   void _selectPlant(int index) {
-    setState(() {
-      _selectedPlantIndex = index;
-    });
-    // ĐÃ CẬP NHẬT: Sử dụng hàm mới
+    setState(() => _selectedPlantIndex = index);
     _showTopSnackBar('Đã chọn cây "${_plants[index].speciesName}"!', Colors.blue);
   }
 
+  // ===== Helper: tăng hướng về vùng OK, tránh nhảy sang Đỏ =====
+  double _applyIncrementTowardsOk({
+    required double current,
+    required Range optimal,
+    required double effect,
+    required double tolerance,
+  }) {
+    // Ranh trên vẫn còn "Xanh"
+    final double maxOk = optimal.high + tolHi;
+
+    // Nếu đang Low -> nhắm tới giữa vùng tối ưu
+    if (current < optimal.low) {
+      final double targetMid = (optimal.low + optimal.high) / 2.0;
+      final double needed = targetMid - current; // cần bù để lên giữa vùng
+      final double delta = needed <= 0 ? 0 : min(effect, needed);
+      final double projected = current + delta;
+      return projected.clamp(0.0, min(maxOk, tolerance));
+    }
+
+    // Nếu đang OK/High -> tăng nhưng kẹp ở ranh Xanh tối đa
+    final double projected = current + effect;
+    final double cappedOk = min(projected, maxOk);
+    return min(cappedOk, tolerance).clamp(0.0, 100.0);
+  }
+
+  // ===== Kết thúc ngày: decay (theo thời tiết & độ khó) + chấm điểm + quest + stage =====
   void _endDay() {
     setState(() {
+      final cfg = _cfg;
+      _stickerBag.updateAll((_, __) => 0);
+
+      final wx = kWeather[_todayWeather]!;
       for (var plant in _plants) {
         if (plant.isCompleted) continue;
-
         final species = plantSpeciesData[plant.type]!;
 
-        plant.waterLevel = (plant.waterLevel - (baseDailyDecay * species.waterNeed)).clamp(0, 100);
-        plant.lightLevel = (plant.lightLevel - (baseDailyDecay * species.lightNeed)).clamp(0, 100);
-        plant.nutrientLevel = (plant.nutrientLevel - nutrientDailyDecay).clamp(0, 100);
+        // 1) Decay có nhân thời tiết + độ khó
+        plant.waterLevel = clamp100(
+          plant.waterLevel - (baseDailyDecay * species.waterNeed * wx.waterMul * cfg.decayMulWater),
+        );
+        plant.lightLevel = clamp100(
+          plant.lightLevel - (baseDailyDecay * species.lightNeed * wx.lightMul * cfg.decayMulLight),
+        );
+        plant.nutrientLevel = clamp100(
+          plant.nutrientLevel - (nutrientDailyDecay * cfg.decayMulNutrient),
+        );
 
-        _updatePlantStatus(plant);
+        // 2) Zone & điểm
+        final wz = zoneOf(plant.waterLevel, species.optimalWater);
+        final lz = zoneOf(plant.lightLevel, species.optimalLight);
+        final nz = zoneOf(plant.nutrientLevel, species.optimalNutrient);
+
+        var dayScore = dailyGrowthScore(wz, lz, nz, pests: plant.pests, overgrown: plant.overgrown);
+
+        // 3) Quest
+        final greens = [wz, lz, nz].where((z) => z == Zone.ok).length;
+        for (final q in plant.quests) {
+          if (q.completed) continue;
+          switch (q.type) {
+            case QuestType.okZonesDays:
+              if (greens >= q.requiredOkCount) {
+                q.progressDays++;
+                dayScore += 3; // bonus nhẹ khi đạt điều kiện ngày
+                if (q.progressDays >= q.targetDays) {
+                  q.completed = true;
+                  dayScore += 2; // bonus khi hoàn thành
+                }
+              }
+              break;
+            case QuestType.handlePestsOnce:
+            case QuestType.pruneOnce:
+            // đánh dấu ở _applyTool khi xử lý sâu/tỉa
+              break;
+          }
+        }
+
+        plant.lastDailyScore = dayScore;
+        // 4) Quy đổi điểm → tiến độ theo độ khó
+        plant.growthProgress = clampInt(plant.growthProgress + (dayScore * cfg.growthMul), 0, 100);
+
+        // 5) Sticker
+        final s = stickerFromScore(dayScore);
+        plant.lastSticker = s;
+        _stickerBag[s] = (_stickerBag[s] ?? 0) + 1;
+
+        // 6) Animation feedback
+        if (dayScore >= 10) {
+          plant.animationTrigger = AnimationTrigger.healthy;
+          plant.animationCounter++;
+        } else if (dayScore == 0) {
+          plant.animationTrigger = AnimationTrigger.unhealthy;
+          plant.animationCounter++;
+        }
+
+        // 7) Lên stage / hoàn thành
+        if (plant.growthProgress >= 100 && plant.stage != PlantStage.raHoa) {
+          plant.stage = PlantStage.values[plant.stage.index + 1];
+          plant.label = plantStageCreativeNames[plant.stage]!;
+          plant.growthProgress = 0;
+          plant.animationTrigger = AnimationTrigger.healthy;
+          plant.animationCounter++;
+          plant.quests = generateQuestsForStage(plant.stage);
+        } else if (plant.stage == PlantStage.raHoa && plant.growthProgress >= 100) {
+          plant.isCompleted = true;
+        }
+
+        // 8) Sự kiện nhỏ theo độ khó
+        if (!plant.pests && _rnd.nextDouble() < _cfg.pestChance) {
+          plant.pests = true;
+        }
+        if (!plant.overgrown && _rnd.nextDouble() < _cfg.overgrownChance) {
+          plant.overgrown = true;
+        }
       }
 
+      // Thời tiết ngày tới + summary
+      final nextWeather = _rollWeatherWeighted(_rnd, _cfg);
+      final endedDay = _currentDay;
       _currentDay++;
       _selectedPlantIndex = null;
 
       if (_currentDay > totalDays) {
         widget.onFinish(correctActions, wrongActions);
       } else {
-        _showDaySummary();
+        showDaySummaryDialog(
+          context: context,
+          dayIndex: endedDay,
+          plants: _plants,
+          stickerBag: _stickerBag,
+          nextWeather: nextWeather,
+        );
+        _todayWeather = nextWeather;
       }
     });
   }
 
-  // --- 3. Core Game Logic ---
-
-  double _calculateHealth(Plant plant) {
-    final average = (plant.waterLevel + plant.lightLevel + plant.nutrientLevel) / 3;
-    return average.clamp(0.0, 100.0);
-  }
-
-  void _updatePlantStatus(Plant plant, {bool recalculateHealth = true}) {
-    if (recalculateHealth) {
-      plant.health = _calculateHealth(plant);
-    }
-
-    if (plant.health >= growthHealthThreshold && plant.stage != PlantStage.raHoa) {
-      plant.stage = PlantStage.values[plant.stage.index + 1];
-      plant.label = plantStageCreativeNames[plant.stage]!;
-      plant.animationTrigger = AnimationTrigger.healthy;
-      plant.animationCounter++;
-    } else if (plant.health < unhealthyHealthThreshold) {
-      plant.animationTrigger = AnimationTrigger.unhealthy;
-      plant.animationCounter++;
-    }
-
-    if (plant.stage == PlantStage.raHoa && plant.health >= growthHealthThreshold) {
-      plant.isCompleted = true;
-    }
-  }
-
+  // ===== Áp dụng công cụ (có nhân hiệu lực theo độ khó + kiểm tra projected & vùng OK) =====
   void _applyTool(Plant plant, CareToolType toolType) {
+    final cfg = _cfg;
+
     if (_resources[toolType]! <= 0) {
-      // ĐÃ CẬP NHẬT: Sử dụng hàm mới
       _showTopSnackBar('Hết ${plantCareTools.firstWhere((t) => t.type == toolType).label}!', Colors.orange);
       return;
     }
@@ -229,130 +332,125 @@ class PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
 
     setState(() {
       _resources[toolType] = _resources[toolType]! - 1;
-
       bool actionWasCorrect = true;
 
       switch (toolType) {
-        case CareToolType.nuoc:
-          if (plant.waterLevel > species.waterTolerance) {
-            plant.health = (plant.health - healthPenaltyAmount).clamp(0, 100);
-            wrongActions++;
-            actionWasCorrect = false;
-            // ĐÃ CẬP NHẬT: Sử dụng hàm mới
-            _showTopSnackBar('${species.name} không ưa nhiều nước! Cây bị úng.', Colors.red);
+        case CareToolType.nuoc: {
+          final double step = toolEffectAmount * cfg.toolMul;
+          final double projected = clamp100(plant.waterLevel + step);
+
+          // Chặn tolerance trước
+          if (projected > species.waterTolerance) {
+            wrongActions++; actionWasCorrect = false;
+            _showTopSnackBar('${species.name} không ưa nhiều nước! Dễ úng.', Colors.red);
           } else {
-            plant.waterLevel = (plant.waterLevel + toolEffectAmount).clamp(0, 100);
+            final after = _applyIncrementTowardsOk(
+              current: plant.waterLevel,
+              optimal: species.optimalWater,
+              effect: step,
+              tolerance: species.waterTolerance,
+            );
+            if ((after - plant.waterLevel).abs() < 0.001) {
+              wrongActions++; actionWasCorrect = false;
+              _showTopSnackBar('Đã đủ nước cho hôm nay. Đừng “quá tay” nhé!', Colors.orange);
+            } else {
+              plant.waterLevel = after;
+            }
           }
           break;
-        case CareToolType.anhSang:
-          if (plant.lightLevel > species.lightTolerance) {
-            plant.health = (plant.health - healthPenaltyAmount).clamp(0, 100);
-            wrongActions++;
-            actionWasCorrect = false;
-            // ĐÃ CẬP NHẬT: Sử dụng hàm mới
-            _showTopSnackBar('${species.name} không thích nắng gắt! Cây bị cháy nắng.', Colors.red);
+        }
+
+        case CareToolType.anhSang: {
+          final double step = toolEffectAmount * cfg.toolMul;
+          final double projected = clamp100(plant.lightLevel + step);
+          if (projected > species.lightTolerance) {
+            wrongActions++; actionWasCorrect = false;
+            _showTopSnackBar('${species.name} không thích nắng gắt! Cháy lá.', Colors.red);
           } else {
-            plant.lightLevel = (plant.lightLevel + toolEffectAmount).clamp(0, 100);
+            final after = _applyIncrementTowardsOk(
+              current: plant.lightLevel,
+              optimal: species.optimalLight,
+              effect: step,
+              tolerance: species.lightTolerance,
+            );
+            if ((after - plant.lightLevel).abs() < 0.001) {
+              wrongActions++; actionWasCorrect = false;
+              _showTopSnackBar('Ánh sáng đã đủ. Đừng đẩy quá nhé!', Colors.orange);
+            } else {
+              plant.lightLevel = after;
+            }
           }
           break;
-        case CareToolType.phanBon:
-          plant.nutrientLevel = (plant.nutrientLevel + toolEffectAmount).clamp(0, 100);
+        }
+
+        case CareToolType.phanBon: {
+          final double step = toolEffectAmount * cfg.toolMul;
+          final double projected = clamp100(plant.nutrientLevel + step);
+          if (projected > species.nutrientTolerance) {
+            wrongActions++; actionWasCorrect = false;
+            _showTopSnackBar('Bón quá tay dễ “cháy rễ”.', Colors.red);
+          } else {
+            final after = _applyIncrementTowardsOk(
+              current: plant.nutrientLevel,
+              optimal: species.optimalNutrient,
+              effect: step,
+              tolerance: species.nutrientTolerance,
+            );
+            if ((after - plant.nutrientLevel).abs() < 0.001) {
+              wrongActions++; actionWasCorrect = false;
+              _showTopSnackBar('Dinh dưỡng đã đủ rồi.', Colors.orange);
+            } else {
+              plant.nutrientLevel = after;
+            }
+          }
           break;
+        }
+
         case CareToolType.thuocTruSau:
+          if (plant.pests) {
+            plant.pests = false;
+            for (final q in plant.quests) {
+              if (q.type == QuestType.handlePestsOnce && !q.completed) { q.completed = true; break; }
+            }
+            correctActions++;
+            _showTopSnackBar('Tuyệt! Cây đã hết sâu bệnh.', Colors.green);
+            return;
+          } else {
+            wrongActions++; actionWasCorrect = false;
+            _showTopSnackBar('Hôm nay chưa có sâu để bắt.', Colors.orange);
+          }
+          break;
+
         case CareToolType.catTia:
+          if (plant.overgrown) {
+            plant.overgrown = false;
+            for (final q in plant.quests) {
+              if (q.type == QuestType.pruneOnce && !q.completed) { q.completed = true; break; }
+            }
+            correctActions++;
+            _showTopSnackBar('Đã tỉa gọn gàng! Cây dễ thở hơn.', Colors.green);
+            return;
+          } else {
+            wrongActions++; actionWasCorrect = false;
+            _showTopSnackBar('Cây chưa rậm rạp để tỉa.', Colors.orange);
+          }
           break;
       }
 
       if (actionWasCorrect) {
         correctActions++;
-        // ĐÃ CẬP NHẬT: Sử dụng hàm mới
         _showTopSnackBar('Đã dùng ${tool.label} cho ${plant.speciesName}! ${tool.explanation}', Colors.green);
       }
-
-      if (actionWasCorrect) {
-        _updatePlantStatus(plant, recalculateHealth: true);
-      } else {
-        _updatePlantStatus(plant, recalculateHealth: false);
-      }
-
-      _triggerRandomEvent(plant);
     });
   }
 
-  void _triggerRandomEvent(Plant plant) {
-    if (_rnd.nextDouble() > plant.stage.eventProbability) return;
-
-    final possibleIssues = plantStageRules[plant.stage];
-    if (possibleIssues == null || possibleIssues.isEmpty) return;
-
-    final issue = possibleIssues[_rnd.nextInt(possibleIssues.length)];
-    _showPlantIssueEvent(plant, issue);
-  }
-
-  // --- 4. UI and Dialog Methods ---
-
-  void _showPlantIssueEvent(Plant plant, PlantIssue issue) {
-    final issueLabel = plantIssueLabels[issue] ?? "Vấn đề không xác định";
-    final correctTool = plantCareTools.firstWhere((tool) => tool.fixes == issue);
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: Text('Sự kiện: $issueLabel'),
-        content: Text('Cây ${plant.speciesName} đang gặp vấn đề. Chọn công cụ phù hợp để cứu cây.'),
-        actions: plantCareTools.map((tool) => TextButton(
-          onPressed: () {
-            Navigator.pop(context);
-            if (tool.type == correctTool.type && _resources[tool.type]! > 0) {
-              setState(() {
-                plant.health = (plant.health + eventHealthEffect).clamp(0, 100);
-                correctActions += 5;
-                _resources[tool.type] = _resources[tool.type]! - 1;
-              });
-              // ĐÃ CẬP NHẬT: Sử dụng hàm mới
-              _showTopSnackBar('Tuyệt vời! Cây đã được cứu khỏi $issueLabel!', Colors.green);
-            } else {
-              setState(() {
-                plant.health = (plant.health - eventHealthEffect).clamp(0, 100);
-                wrongActions++;
-              });
-              // ĐÃ CẬP NHẬT: Sử dụng hàm mới
-              _showTopSnackBar('Sai công cụ! Cây bị ảnh hưởng bởi $issueLabel.', Colors.red);
-            }
-          },
-          child: Text(tool.label),
-        )).toList(),
-      ),
-    );
-  }
-
-  void _showDaySummary() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Kết thúc ngày ${_currentDay - 1}'),
-        content: const Text('Bắt đầu ngày mới! Tiếp tục chăm sóc để cây ra hoa!'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Tiếp tục'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // --- GHI CHÚ: ĐÃ XÓA HÀM _showHandbook() KHÔNG CÒN ĐƯỢC SỬ DỤNG ---
-
-  // --- 5. Build Method ---
   @override
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.of(context).size.height;
     final fontSize = screenHeight * 0.04;
+    final wx = kWeather[_todayWeather]!;
 
     return Scaffold(
-      // --- GHI CHÚ: ĐÃ XÓA floatingActionButton TẠI ĐÂY ---
       body: Container(
         decoration: const BoxDecoration(
           image: DecorationImage(
@@ -362,201 +460,114 @@ class PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
         ),
         child: Column(
           children: [
+            // ===== Header (đã fix overflow bằng Expanded/Flexible) =====
             SafeArea(
               bottom: false,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 8.0),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Chip(
-                      backgroundColor: Colors.white.withOpacity(0.9),
-                      avatar: const Icon(Icons.star),
-                      label: Text('Ngày: $_currentDay/$totalDays'),
+                    Expanded(
+                      child: Wrap(
+                        spacing: 8, runSpacing: 4,
+                        children: [
+                          Chip(
+                            backgroundColor: Colors.white.withOpacity(0.9),
+                            avatar: const Icon(Icons.star),
+                            label: Text('Ngày: $_currentDay/$totalDays'),
+                          ),
+                          Chip(
+                            backgroundColor: Colors.white.withOpacity(0.9),
+                            avatar: Icon(wx.icon, color: Colors.orange),
+                            label: Text('Thời tiết: ${wx.name}'),
+                          ),
+                        ],
+                      ),
                     ),
-                    FilledButton(
-                      onPressed: _endDay,
-                      child: const Text('Kết thúc ngày'),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      fit: FlexFit.loose,
+                      child: FilledButton(
+                        onPressed: _endDay,
+                        child: const Text('Kết thúc ngày'),
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
+
             if (_selectedPlantIndex != null)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8.0),
                 child: Text(
                   'Đang chăm sóc: ${_plants[_selectedPlantIndex!].speciesName}',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white, shadows: [Shadow(blurRadius: 2, color: Colors.black)]),
+                  style: const TextStyle(
+                    fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white,
+                    shadows: [Shadow(blurRadius: 2, color: Colors.black)],
+                  ),
                 ),
               ),
+
+            // ===== Lưới thẻ cây =====
             Expanded(
               child: GridView.builder(
                 padding: const EdgeInsets.all(12),
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: 0.7,
+                  crossAxisCount: 2, crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 0.7,
                 ),
                 itemCount: _plants.length,
                 itemBuilder: (_, i) => GestureDetector(
                   onTap: () => _selectPlant(i),
-                  child: PlantCard(
-                    plant: _plants[i],
-                    fontSize: fontSize,
-                    isSelected: _selectedPlantIndex == i,
-                  ),
+                  child: PlantCard(plant: _plants[i], fontSize: fontSize, isSelected: _selectedPlantIndex == i),
                 ),
               ),
             ),
+
+            // ===== Thanh công cụ (cuộn ngang để chống tràn) =====
             SafeArea(
               top: false,
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: plantCareTools.map((tool) {
-                    final isEnabled = _resources[tool.type]! > 0 && _selectedPlantIndex != null;
-                    return Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          onPressed: isEnabled ? () => _applyTool(_plants[_selectedPlantIndex!], tool.type) : null,
-                          icon: Icon(tool.icon, size: 32, color: isEnabled ? Colors.white : Colors.grey.shade600),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: plantCareTools.map((tool) {
+                      final isEnabled =
+                          _resources[tool.type]! > 0 && _selectedPlantIndex != null;
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 6.0),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              onPressed: isEnabled
+                                  ? () => _applyTool(_plants[_selectedPlantIndex!], tool.type)
+                                  : null,
+                              icon: Icon(
+                                tool.icon,
+                                size: 32,
+                                color: isEnabled ? Colors.white : Colors.grey.shade600,
+                              ),
+                            ),
+                            Text(
+                              _resources[tool.type].toString(),
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: _resources[tool.type]! > 0 ? Colors.white : Colors.grey.shade600,
+                                shadows: [Shadow(blurRadius: 2, color: Colors.black.withOpacity(0.5))],
+                              ),
+                            ),
+                          ],
                         ),
-                        Text(
-                          _resources[tool.type].toString(),
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: _resources[tool.type]! > 0 ? Colors.white : Colors.grey.shade600,
-                            shadows: [Shadow(blurRadius: 2, color: Colors.black.withOpacity(0.5))],
-                          ),
-                        ),
-                      ],
-                    );
-                  }).toList(),
+                      );
+                    }).toList(),
+                  ),
                 ),
               ),
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-// Lớp PlantCard không thay đổi
-class PlantCard extends StatelessWidget {
-  final Plant plant;
-  final double fontSize;
-  final bool isSelected;
-
-  const PlantCard({super.key, required this.plant, required this.fontSize, required this.isSelected});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 10,
-            spreadRadius: 2,
-          ),
-        ],
-        border: isSelected ? Border.all(color: Colors.yellow.shade600, width: 4) : null,
-      ),
-      child: Card(
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        color: plant.isCompleted ? const Color(0xFFE8F5E9) : (plant.health < unhealthyHealthThreshold ? const Color(0xFFFFF3E0) : Colors.white),
-        clipBehavior: Clip.antiAlias,
-        child: Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                Image.asset(
-                  plantImagePaths[plant.type]![plant.stage]!,
-                  height: fontSize * 2,
-                  fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) => const Icon(Icons.error, color: Colors.red),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  plant.speciesName,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.brown),
-                ),
-                Text(
-                  plantStageDescriptiveNames[plant.stage]!,
-                  style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.black54),
-                ),
-                const SizedBox(height: 8),
-                Column(
-                  children: [
-                    _buildProgressBar('Nước', plant.waterLevel, Colors.blue),
-                    _buildProgressBar('Ánh sáng', plant.lightLevel, Colors.orange),
-                    _buildProgressBar('Dinh dưỡng', plant.nutrientLevel, Colors.green),
-                    _buildProgressBar('Sức khỏe', plant.health, plant.health > 50 ? Colors.teal : Colors.redAccent),
-                  ],
-                ),
-                if (plant.isCompleted)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8.0),
-                    child: Icon(
-                      Icons.check_circle,
-                      color: Colors.green.shade400,
-                      size: 36,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    ).animate(
-      key: ValueKey('${plant.animationCounter}-${plant.animationTrigger}'),
-      onComplete: (controller) {
-        plant.animationTrigger = AnimationTrigger.idle;
-      },
-      effects: plant.animationTrigger == AnimationTrigger.healthy
-          ? [
-        ScaleEffect(begin: const Offset(1, 1), end: const Offset(1.1, 1.1), duration: 200.ms, curve: Curves.easeOut),
-        ThenEffect(delay: 50.ms),
-        ScaleEffect(end: const Offset(1, 1), duration: 250.ms, curve: Curves.easeIn),
-      ]
-          : plant.animationTrigger == AnimationTrigger.unhealthy
-          ? [
-        ShakeEffect(hz: 8, duration: 500.ms, curve: Curves.easeInOut),
-        TintEffect(color: Colors.red, duration: 300.ms, end: 0.2),
-      ]
-          : [],
-    );
-  }
-
-  Widget _buildProgressBar(String label, double value, Color color) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2.0),
-      child: Row(
-        children: [
-          SizedBox(width: 70, child: Text('$label:', style: const TextStyle(fontSize: 12))),
-          Expanded(
-            child: LinearProgressIndicator(
-              value: value / 100,
-              color: color,
-              backgroundColor: Colors.grey.shade300,
-              minHeight: 6,
-              borderRadius: BorderRadius.circular(3),
-            ),
-          ),
-          SizedBox(width: 40, child: Text('${value.toInt()}%', textAlign: TextAlign.right,)),
-        ],
       ),
     );
   }

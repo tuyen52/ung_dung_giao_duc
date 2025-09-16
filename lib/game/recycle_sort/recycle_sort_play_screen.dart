@@ -6,16 +6,17 @@ import 'package:mobileapp/game/core/game.dart';
 import 'package:mobileapp/game/core/types.dart';
 import 'package:mobileapp/game/recycle_sort/data/trash_data.dart';
 
-// ENUMS and CLASSES for TrashData (Keep them as they are)
+// ENUMS and CLASSES for TrashData
 enum TrashType { organic, inorganic }
 
+// --- CẬP NHẬT LỚP TRASHITEM ---
 class TrashItem {
   final String id;
   final String name;
-  final String emoji;
+  final String imagePath; // Đổi từ emoji
   final TrashType type;
 
-  const TrashItem(this.id, this.name, this.emoji, this.type);
+  const TrashItem(this.id, this.name, this.imagePath, this.type); // Sửa constructor
 }
 
 // MAIN PLAY SCREEN WIDGET
@@ -74,7 +75,6 @@ class RecycleSortPlayScreenState extends State<RecycleSortPlayScreen> {
   bool _showCorrectOverlay = false;
   bool _showWrongOverlay = false;
 
-  // GlobalKeys to control the new _BinTarget widgets
   final GlobalKey<_BinTargetState> _organicBinKey = GlobalKey();
   final GlobalKey<_BinTargetState> _inorganicBinKey = GlobalKey();
 
@@ -246,7 +246,6 @@ class RecycleSortPlayScreenState extends State<RecycleSortPlayScreen> {
                             ? Colors.orange
                             : (_timeLeft <= 5 ? Colors.red : Colors.blue),
                       ),
-                      // -- CODE ĐƯỢC THÊM --
                       _chip(
                           icon: Icons.eco,
                           label: 'Môi trường',
@@ -255,7 +254,6 @@ class RecycleSortPlayScreenState extends State<RecycleSortPlayScreen> {
                           icon: Icons.school,
                           label: difficultyLabel,
                           color: Colors.purple),
-                      // --------------------
                       _chip(
                           icon: Icons.flag,
                           label: 'Vòng: ${_index + 1}/$_totalRounds',
@@ -268,7 +266,6 @@ class RecycleSortPlayScreenState extends State<RecycleSortPlayScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                // -- CODE ĐƯỢC THÊM --
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16),
                   child: Text('Kéo vật phẩm vào thùng phù hợp',
@@ -279,7 +276,6 @@ class RecycleSortPlayScreenState extends State<RecycleSortPlayScreen> {
                           color: Colors.white,
                           shadows: [Shadow(blurRadius: 2.0, color: Colors.black)])),
                 ),
-                // --------------------
                 Expanded(
                   child: Center(
                     child: IgnorePointer(
@@ -374,14 +370,20 @@ class RecycleSortPlayScreenState extends State<RecycleSortPlayScreen> {
         ]),
       );
 
+  // --- CẬP NHẬT WIDGET _TRASHCARD ---
   Widget _trashCard(TrashItem item, {bool dragging = false}) => Card(
-    color: dragging ? Colors.amber[50] : Colors.white,
-    elevation: dragging ? 12 : 6,
+    color: Colors.transparent,
+    elevation: 0,
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 22),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Text(item.emoji, style: const TextStyle(fontSize: 56)),
+        Image.asset(     // Thay thế Text bằng Image.asset
+          item.imagePath,
+          width: 64,
+          height: 64,
+          fit: BoxFit.contain,
+        ),
         const SizedBox(height: 8),
         Text(item.name,
             style:
@@ -391,7 +393,7 @@ class RecycleSortPlayScreenState extends State<RecycleSortPlayScreen> {
   );
 }
 
-// _BinTarget WIDGET WITH IMAGE ASSETS
+// _BinTarget WIDGET (Không thay đổi)
 class _BinTarget extends StatefulWidget {
   final TrashType type;
   final String label;
@@ -420,7 +422,6 @@ class _BinTargetState extends State<_BinTarget> with TickerProviderStateMixin {
     _failController = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 400));
 
-    // Reset controller to idle state after animation completes
     _successController.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
         Future.delayed(const Duration(milliseconds: 300), () {
@@ -514,8 +515,7 @@ class _BinTargetState extends State<_BinTarget> with TickerProviderStateMixin {
   }
 }
 
-
-// FEEDBACK OVERLAY (No changes needed)
+// FEEDBACK OVERLAY (Không thay đổi)
 class _FeedbackOverlay extends StatefulWidget {
   final bool isCorrect;
   const _FeedbackOverlay({required this.isCorrect});

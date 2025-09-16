@@ -423,45 +423,61 @@ class TrafficSafetyPlayScreenState extends State<TrafficSafetyPlayScreen> {
     }
   }
 
+  // === CẬP NHẬT BẮT ĐẦU TỪ ĐÂY ===
   Widget _buildMultipleChoiceQuestion(Question question, Size screenSize) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: List.generate(question.options.length, (i) {
         final isSelected = _selectedOption == i;
         final isCorrect = question.correctAnswerIndices.contains(i);
-        Color? buttonColor;
-        Color? foregroundColor;
+        Color? cardColor;
+        Color? textColor;
 
         if (_selectedOption != null) {
+          // Nếu câu hỏi đã được trả lời
           if (isCorrect) {
-            buttonColor = Colors.green;
-            foregroundColor = Colors.white;
+            cardColor = Colors.green; // Đáp án đúng màu xanh
+            textColor = Colors.white;
           } else if (isSelected) {
-            buttonColor = Colors.red;
-            foregroundColor = Colors.white;
+            cardColor = Colors.red; // Lựa chọn sai màu đỏ
+            textColor = Colors.white;
+          } else {
+            cardColor = Colors.grey.shade300; // Các lựa chọn khác bị làm mờ
+            textColor = Colors.grey.shade600;
           }
+        } else {
+          // Trạng thái mặc định
+          cardColor = Colors.white;
+          textColor = Colors.black87;
         }
 
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4.0),
-          child: FilledButton(
-            onPressed: _selectedOption != null ? null : () => _handleAnswer(i),
-            style: FilledButton.styleFrom(
-              backgroundColor: buttonColor,
-              foregroundColor: foregroundColor,
-              minimumSize: Size(screenSize.width, screenSize.height * 0.08),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            child: Text(
-              question.options[i],
-              style: const TextStyle(fontSize: 14),
-              textAlign: TextAlign.center,
+        return Card(
+          elevation: 4,
+          margin: const EdgeInsets.symmetric(vertical: 6.0),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          color: cardColor,
+          child: InkWell(
+            onTap: _selectedOption != null ? null : () => _handleAnswer(i),
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 18.0, horizontal: 12.0),
+              child: Text(
+                question.options[i],
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                  color: textColor,
+                ),
+              ),
             ),
           ),
         );
       }),
     );
   }
+  // === KẾT THÚC CẬP NHẬT ===
 
   Widget _buildSortingQuestion(Question question, Size screenSize) {
     return Column(

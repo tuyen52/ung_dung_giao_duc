@@ -1,3 +1,4 @@
+// lib/game/plant_care/widgets/plant_card.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
@@ -107,7 +108,7 @@ class PlantCard extends StatelessWidget {
                     _buildProgressBar('Nước',       plant.waterLevel,    _zoneColor(wz)),
                     _buildProgressBar('Ánh sáng',   plant.lightLevel,    _zoneColor(lz)),
                     _buildProgressBar('Dinh dưỡng', plant.nutrientLevel, _zoneColor(nz)),
-                    _buildProgressBar('Nở hoa',     plant.growthProgress.toDouble(), Colors.teal),
+                    _buildProgressBar('Tiến độ',    plant.growthProgress.toDouble(), Colors.teal), // đổi nhãn
                   ],
                 ),
                 if (plant.isCompleted)

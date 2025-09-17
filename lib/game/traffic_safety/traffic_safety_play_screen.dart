@@ -262,10 +262,7 @@ class TrafficSafetyPlayScreenState extends State<TrafficSafetyPlayScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final question = _deck[_index];
-    final score = _correct * 20 - _wrong * 10;
-    final difficultyLabel = switch (widget.game.difficulty) { 1 => 'Dễ', 2 => 'Vừa', _ => 'Khó' };
-    final screenSize = MediaQuery.of(context).size;
+    final orientation = MediaQuery.of(context).orientation;
 
     return Scaffold(
       body: Stack(
@@ -283,7 +280,7 @@ class TrafficSafetyPlayScreenState extends State<TrafficSafetyPlayScreen> {
           ),
           SafeArea(
             child: Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.all(12.0),
               child: IgnorePointer(
                 ignoring: widget.isPaused,
                 child: Stack(
@@ -292,104 +289,9 @@ class TrafficSafetyPlayScreenState extends State<TrafficSafetyPlayScreen> {
                       duration: const Duration(milliseconds: 150),
                       color: _flashCorrect ? Colors.green.withOpacity(.1) : _flashWrong ? Colors.red.withOpacity(.1) : Colors.transparent,
                     ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          alignment: WrapAlignment.center,
-                          children: [
-                            _chip(
-                              icon: Icons.timer,
-                              label: widget.isPaused ? 'TẠM DỪNG' : '$_timeLeft giây',
-                              color: widget.isPaused ? Colors.orange : (_timeLeft <= 10 ? Colors.red : Colors.blue),
-                            ),
-                            _chip(icon: Icons.public, label: 'Xã hội', color: Colors.green),
-                            _chip(icon: Icons.school, label: difficultyLabel, color: Colors.purple),
-                            _chip(icon: Icons.flag, label: 'Câu: ${_index + 1}/$_totalRounds', color: Colors.teal),
-                            _chip(icon: Icons.stars, label: 'Điểm: $score', color: Colors.orange),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Card(
-                          elevation: 4,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                          child: Padding(
-                            padding: const EdgeInsets.all(12.0),
-                            child: Column(
-                              children: [
-                                if (question.imagePath != null)
-                                  Image.asset(
-                                    question.imagePath!,
-                                    height: 100,
-                                    fit: BoxFit.contain,
-                                  ),
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    if (question.icon != null)
-                                      Padding(
-                                        padding: const EdgeInsets.only(right: 8.0),
-                                        child: Text(
-                                          question.icon!,
-                                          style: const TextStyle(fontSize: 32),
-                                        ),
-                                      ),
-                                    Expanded(
-                                      child: Text(
-                                        question.situation,
-                                        textAlign: TextAlign.center,
-                                        style: const TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w600,
-                                          height: 1.4,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          flex: 3,
-                          child: _buildQuestionWidget(question, screenSize),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8.0),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: (widget.isPaused || _selectedOption != null) ? null : _skip,
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: Colors.white,
-                                    side: const BorderSide(color: Colors.white70),
-                                    minimumSize: Size(screenSize.width, screenSize.height * 0.06),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                  ),
-                                  child: const Text('Câu mới', style: TextStyle(fontSize: 14)),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: FilledButton.icon(
-                                  icon: const Icon(Icons.flag, size: 16),
-                                  label: const Text('Kết thúc', style: TextStyle(fontSize: 14)),
-                                  onPressed: _finish,
-                                  style: FilledButton.styleFrom(
-                                    minimumSize: Size(screenSize.width, screenSize.height * 0.06),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
+                    orientation == Orientation.portrait
+                        ? _buildPortraitLayout()
+                        : _buildLandscapeLayout(),
                     if (_flashCorrect || _flashWrong)
                       Center(
                         child: AnimatedScale(
@@ -412,213 +314,437 @@ class TrafficSafetyPlayScreenState extends State<TrafficSafetyPlayScreen> {
     );
   }
 
-  Widget _buildQuestionWidget(Question question, Size screenSize) {
-    switch (question.type) {
-      case QuestionType.multipleChoice:
-        return _buildMultipleChoiceQuestion(question, screenSize);
-      case QuestionType.sorting:
-        return _buildSortingQuestion(question, screenSize);
-      case QuestionType.imageSelection:
-        return _buildImageSelectionQuestion(question, screenSize);
-    }
-  }
-
-  // === CẬP NHẬT BẮT ĐẦU TỪ ĐÂY ===
-  Widget _buildMultipleChoiceQuestion(Question question, Size screenSize) {
+  Widget _buildPortraitLayout() {
+    final question = _deck[_index];
     return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: List.generate(question.options.length, (i) {
-        final isSelected = _selectedOption == i;
-        final isCorrect = question.correctAnswerIndices.contains(i);
-        Color? cardColor;
-        Color? textColor;
-
-        if (_selectedOption != null) {
-          // Nếu câu hỏi đã được trả lời
-          if (isCorrect) {
-            cardColor = Colors.green; // Đáp án đúng màu xanh
-            textColor = Colors.white;
-          } else if (isSelected) {
-            cardColor = Colors.red; // Lựa chọn sai màu đỏ
-            textColor = Colors.white;
-          } else {
-            cardColor = Colors.grey.shade300; // Các lựa chọn khác bị làm mờ
-            textColor = Colors.grey.shade600;
-          }
-        } else {
-          // Trạng thái mặc định
-          cardColor = Colors.white;
-          textColor = Colors.black87;
-        }
-
-        return Card(
-          elevation: 4,
-          margin: const EdgeInsets.symmetric(vertical: 6.0),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          color: cardColor,
-          child: InkWell(
-            onTap: _selectedOption != null ? null : () => _handleAnswer(i),
-            borderRadius: BorderRadius.circular(16),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 18.0, horizontal: 12.0),
-              child: Text(
-                question.options[i],
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                  color: textColor,
-                ),
-              ),
-            ),
-          ),
-        );
-      }),
-    );
-  }
-  // === KẾT THÚC CẬP NHẬT ===
-
-  Widget _buildSortingQuestion(Question question, Size screenSize) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const Text(
-          'Kéo lựa chọn phù hợp vào hộp',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-            shadows: [Shadow(blurRadius: 2, color: Colors.black)],
-          ),
-        ),
-        const SizedBox(height: 16),
-        DragTarget<int>(
-          builder: (context, candidateData, rejectedData) {
-            return Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12.0),
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.25),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: candidateData.isNotEmpty ? Colors.lightBlueAccent : Colors.white60,
-                  width: 2,
-                ),
-              ),
-              constraints: BoxConstraints(minHeight: screenSize.height * 0.15),
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                alignment: WrapAlignment.center,
-                children: _sortedOptions.map((optionIndex) {
-                  return Draggable<int>(
-                    data: optionIndex,
-                    feedback: Material(
-                      color: Colors.transparent,
-                      child: Chip(label: Text(question.options[optionIndex]), backgroundColor: Colors.green[200]),
-                    ),
-                    childWhenDragging: const SizedBox.shrink(),
-                    child: Chip(
-                      label: Text(question.options[optionIndex]),
-                      backgroundColor: Colors.green[100],
-                    ),
-                  );
-                }).toList(),
-              ),
-            );
-          },
-          onAccept: (index) {
-            if (_selectedOption != null) return;
-            setState(() {
-              _sortedOptions.add(index);
-              if (_sortedOptions.length == question.options.length) {
-                Future.delayed(const Duration(milliseconds: 200), () {
-                  if (mounted) _handleSortingAnswer(_sortedOptions);
-                });
-              }
-            });
-          },
-        ),
-
-        const SizedBox(height: 10),
-        const Text('↓ Kéo từ đây ↓', style: TextStyle(color: Colors.white70)),
-
+        _buildInfoChips(),
+        const SizedBox(height: 12),
+        _buildQuestionCard(question),
         Expanded(
-          child: SingleChildScrollView(
-            child: DragTarget<int>(
-              builder: (context, candidateData, rejectedData) {
-                final availableOptions = List.generate(question.options.length, (i) => i)
-                    .where((i) => !_sortedOptions.contains(i))
-                    .toList();
-                return Container(
-                  padding: const EdgeInsets.all(16.0),
-                  constraints: const BoxConstraints(minWidth: double.infinity),
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    alignment: WrapAlignment.center,
-                    children: availableOptions.map((i) {
-                      return Draggable<int>(
-                        data: i,
-                        feedback: Material(
-                          color: Colors.transparent,
-                          child: Chip(label: Text(question.options[i]), backgroundColor: Colors.blue[300]),
-                        ),
-                        childWhenDragging: Chip(label: Text(question.options[i]), backgroundColor: Colors.grey),
-                        child: Chip(label: Text(question.options[i]), backgroundColor: Colors.blue[200]),
-                      );
-                    }).toList(),
-                  ),
-                );
-              },
-              onAccept: (index) {
-                if (_selectedOption != null) return;
-                setState(() {
-                  _sortedOptions.remove(index);
-                });
-              },
-            ),
-          ),
+          flex: 3,
+          child: _buildQuestionWidget(question),
         ),
+        _buildControlButtons(),
       ],
     );
   }
 
-  Widget _buildImageSelectionQuestion(Question question, Size screenSize) {
-    return GridView.count(
-      crossAxisCount: 2,
-      childAspectRatio: 1.0,
-      mainAxisSpacing: 8,
-      crossAxisSpacing: 8,
-      children: List.generate(question.options.length, (i) {
-        final isSelected = _selectedOption == i;
-        final isCorrect = question.correctAnswerIndices.contains(i);
-        Color? borderColor;
+  Widget _buildLandscapeLayout() {
+    final question = _deck[_index];
+    return Column(
+      children: [
+        _buildInfoChips(),
+        const SizedBox(height: 8),
+        Expanded(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                flex: 2,
+                child: SingleChildScrollView(
+                  child: _buildQuestionCard(question),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 3,
+                child: _buildQuestionWidget(question),
+              ),
+            ],
+          ),
+        ),
+        _buildControlButtons(),
+      ],
+    );
+  }
 
-        if (_selectedOption != null) {
-          if (isCorrect) {
-            borderColor = Colors.green;
-          } else if (isSelected) {
-            borderColor = Colors.red;
-          }
-        }
+  Widget _buildInfoChips() {
+    final score = _correct * 20 - _wrong * 10;
+    final difficultyLabel = switch (widget.game.difficulty) { 1 => 'Dễ', 2 => 'Vừa', _ => 'Khó' };
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      alignment: WrapAlignment.center,
+      children: [
+        _chip(
+          icon: Icons.timer,
+          label: widget.isPaused ? 'TẠM DỪNG' : '$_timeLeft giây',
+          color: widget.isPaused ? Colors.orange : (_timeLeft <= 10 ? Colors.red : Colors.blue),
+        ),
+        _chip(icon: Icons.public, label: 'Xã hội', color: Colors.green),
+        _chip(icon: Icons.school, label: difficultyLabel, color: Colors.purple),
+        _chip(icon: Icons.flag, label: 'Câu: ${_index + 1}/$_totalRounds', color: Colors.teal),
+        _chip(icon: Icons.stars, label: 'Điểm: $score', color: Colors.orange),
+      ],
+    );
+  }
 
-        return GestureDetector(
-          onTap: _selectedOption != null ? null : () => _handleImageSelection(i),
-          child: Container(
-            decoration: BoxDecoration(
-              border: Border.all(color: borderColor ?? Colors.grey, width: 2),
-              borderRadius: BorderRadius.circular(8),
+  Widget _buildQuestionCard(Question question) {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (question.imagePath != null)
+              Image.asset(
+                question.imagePath!,
+                height: 100,
+                fit: BoxFit.contain,
+              ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                if (question.icon != null)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8.0),
+                    child: Text(
+                      question.icon!,
+                      style: const TextStyle(fontSize: 32),
+                    ),
+                  ),
+                Expanded(
+                  child: Text(
+                    question.situation,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            child: Image.asset(
-              question.options[i],
-              fit: BoxFit.cover,
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildControlButtons() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8.0),
+      child: Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: (widget.isPaused || _selectedOption != null) ? null : _skip,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white,
+                side: const BorderSide(color: Colors.white70),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('Câu mới', style: TextStyle(fontSize: 14)),
             ),
           ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: FilledButton.icon(
+              icon: const Icon(Icons.flag, size: 16),
+              label: const Text('Kết thúc', style: TextStyle(fontSize: 14)),
+              onPressed: _finish,
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+
+  Widget _buildQuestionWidget(Question question) {
+    switch (question.type) {
+      case QuestionType.multipleChoice:
+        return _buildMultipleChoiceQuestion(question);
+      case QuestionType.sorting:
+        return _buildSortingQuestion(question);
+      case QuestionType.imageSelection:
+        return _buildImageSelectionQuestion(question);
+    }
+  }
+
+  Widget _buildMultipleChoiceQuestion(Question question) {
+    final orientation = MediaQuery.of(context).orientation;
+    final isPortrait = orientation == Orientation.portrait;
+
+    if (isPortrait) {
+      return Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: List.generate(question.options.length, (i) {
+          return _buildChoiceChip(question, i);
+        }),
+      );
+    } else {
+      return Center(
+        child: GridView.count(
+          crossAxisCount: 2,
+          shrinkWrap: true,
+          mainAxisSpacing: 8,
+          crossAxisSpacing: 8,
+          childAspectRatio: 2.5,
+          children: List.generate(question.options.length, (i) {
+            return _buildChoiceChip(question, i, isVertical: false);
+          }),
+        ),
+      );
+    }
+  }
+
+  Widget _buildChoiceChip(Question question, int index, {bool isVertical = true}) {
+    final isSelected = _selectedOption == index;
+    final isCorrect = question.correctAnswerIndices.contains(index);
+    Color? cardColor;
+    Color? textColor;
+
+    if (_selectedOption != null) {
+      if (isCorrect) {
+        cardColor = Colors.green;
+        textColor = Colors.white;
+      } else if (isSelected) {
+        cardColor = Colors.red;
+        textColor = Colors.white;
+      } else {
+        cardColor = Colors.grey.shade300;
+        textColor = Colors.grey.shade600;
+      }
+    } else {
+      cardColor = Colors.white;
+      textColor = Colors.black87;
+    }
+
+    return Card(
+      elevation: 4,
+      margin: EdgeInsets.symmetric(vertical: isVertical ? 6.0 : 0),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: cardColor,
+      child: InkWell(
+        onTap: _selectedOption != null ? null : () => _handleAnswer(index),
+        borderRadius: BorderRadius.circular(16),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 12.0),
+            child: Text(
+              question.options[index],
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+                color: textColor,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+
+  Widget _buildSortingQuestion(Question question) {
+    final orientation = MediaQuery.of(context).orientation;
+    final isPortrait = orientation == Orientation.portrait;
+
+    final availableOptions = List.generate(question.options.length, (i) => i)
+        .where((i) => !_sortedOptions.contains(i))
+        .toList();
+
+    final sourceArea = DragTarget<int>(
+      builder: (context, candidateData, rejectedData) {
+        return Container(
+          padding: const EdgeInsets.all(12.0),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          constraints: const BoxConstraints(minWidth: double.infinity),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.center,
+            children: availableOptions.map((i) {
+              return Draggable<int>(
+                data: i,
+                feedback: Material(
+                  color: Colors.transparent,
+                  child: Chip(label: Text(question.options[i]), backgroundColor: Colors.blue[300]),
+                ),
+                childWhenDragging: Chip(label: Text(question.options[i]), backgroundColor: Colors.grey),
+                child: Chip(label: Text(question.options[i]), backgroundColor: Colors.blue[200]),
+              );
+            }).toList(),
+          ),
         );
-      }),
+      },
+      onAccept: (index) {
+        if (_selectedOption != null) return;
+        setState(() => _sortedOptions.remove(index));
+      },
+    );
+
+    final targetArea = DragTarget<int>(
+      builder: (context, candidateData, rejectedData) {
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12.0),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.25),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: candidateData.isNotEmpty ? Colors.lightBlueAccent : Colors.white60,
+              width: 2,
+            ),
+          ),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.center,
+            children: _sortedOptions.asMap().entries.map((entry) {
+              int idx = entry.key;
+              int optionIndex = entry.value;
+
+              return Draggable<int>(
+                data: optionIndex,
+                feedback: Material(
+                  color: Colors.transparent,
+                  child: Chip(
+                    label: Text('${idx + 1}. ${question.options[optionIndex]}'),
+                    backgroundColor: Colors.green[200],
+                  ),
+                ),
+                childWhenDragging: const SizedBox.shrink(),
+                child: Chip(
+                  label: Text(
+                    '${idx + 1}. ${question.options[optionIndex]}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  backgroundColor: Colors.green[100],
+                ),
+              );
+            }).toList(),
+          ),
+        );
+      },
+      onAccept: (index) {
+        if (_selectedOption != null) return;
+        setState(() {
+          _sortedOptions.add(index);
+          if (_sortedOptions.length == question.options.length) {
+            Future.delayed(const Duration(milliseconds: 200), () {
+              if (mounted) _handleSortingAnswer(_sortedOptions);
+            });
+          }
+        });
+      },
+    );
+
+    if (isPortrait) {
+      return Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Text('Kéo và thả vào hộp theo đúng thứ tự', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          targetArea,
+          const SizedBox(height: 10),
+          const Text('↓ Kéo từ đây ↓', style: TextStyle(color: Colors.white70)),
+          const SizedBox(height: 4),
+          Expanded(child: SingleChildScrollView(child: sourceArea)),
+        ],
+      );
+    } else { // Landscape
+      return Row(
+        children: [
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('Kéo từ đây', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Flexible(child: SingleChildScrollView(child: sourceArea)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('Thả vào đây', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Flexible(child: SingleChildScrollView(child: targetArea)),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+  }
+
+  Widget _buildImageSelectionQuestion(Question question) {
+    return Center(
+      child: GridView.builder(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          childAspectRatio: 1.2,
+          mainAxisSpacing: 8,
+          crossAxisSpacing: 8,
+        ),
+        shrinkWrap: true,
+        itemCount: question.options.length,
+        itemBuilder: (context, i) {
+          final isSelected = _selectedOption == i;
+          final isCorrect = question.correctAnswerIndices.contains(i);
+          Color borderColor = Colors.transparent;
+          double borderWidth = 3.0;
+
+          if (_selectedOption != null) {
+            if (isCorrect) {
+              borderColor = Colors.green;
+            } else if (isSelected) {
+              borderColor = Colors.red;
+            } else {
+              borderWidth = 1.0;
+              borderColor = Colors.grey;
+            }
+          }
+
+          return GestureDetector(
+            onTap: _selectedOption != null ? null : () => _handleImageSelection(i),
+            child: Card(
+              elevation: 4,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: borderColor, width: borderWidth),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: GridTile(
+                child: Image.asset(
+                  question.options[i],
+                  fit: BoxFit.cover,
+                ),
+                footer: isSelected ?
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  color: Colors.black54,
+                  child: Icon(
+                    isCorrect ? Icons.check_circle : Icons.cancel,
+                    color: isCorrect ? Colors.green : Colors.red,
+                  ),
+                )
+                    : null,
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 

@@ -134,7 +134,7 @@ class _GameScreenWrapperState extends State<GameScreenWrapper> {
                   ),
                 ),
                 const SizedBox(height: 16.0),
-                Flexible(child: contentBox), // Sửa lỗi overflow cho dialog
+                Flexible(child: contentBox),
                 const SizedBox(height: 24.0),
                 if (actions.isNotEmpty)
                   Column(
@@ -150,7 +150,6 @@ class _GameScreenWrapperState extends State<GameScreenWrapper> {
   }
 
   void _showExitConfirmationDialog() {
-    // vẫn đang ở trạng thái menu → hiển thị hộp thoại xác nhận
     _showCustomDialog(
       title: 'Xác nhận thoát',
       content: const Text(
@@ -169,7 +168,7 @@ class _GameScreenWrapperState extends State<GameScreenWrapper> {
             },
             backgroundColor: Colors.green,
           ),
-        if (widget.onSaveAndExit != null) const SizedBox(height: 12),
+        if (widget.onSaveAndExit != null) const SizedBox(height: 8),
         _buildDialogButton(
           text: 'Thoát & Tổng kết',
           icon: Icons.flag_rounded,
@@ -179,7 +178,7 @@ class _GameScreenWrapperState extends State<GameScreenWrapper> {
           },
           backgroundColor: Colors.redAccent,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         _buildDialogButton(
           text: 'Hủy',
           icon: Icons.cancel_outlined,
@@ -191,7 +190,6 @@ class _GameScreenWrapperState extends State<GameScreenWrapper> {
   }
 
   void _showSettings() {
-    // Nếu gọi từ AppBar hoặc menu, ta chỉ đóng băng game (không ép hiện menu)
     final old = _interruption;
     setState(() => _interruption = _Interruption.settings);
     _showCustomDialog(
@@ -221,7 +219,6 @@ class _GameScreenWrapperState extends State<GameScreenWrapper> {
           onPressed: () {
             Navigator.of(context).pop();
             if (!mounted) return;
-            // Trả lại trạng thái trước (thường là menu hoặc none)
             setState(() => _interruption = old);
           },
           backgroundColor: Colors.blueAccent,
@@ -255,7 +252,7 @@ class _GameScreenWrapperState extends State<GameScreenWrapper> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: AnimatedOpacity( // Sửa lỗi chữ đè lên nhau
+        title: AnimatedOpacity(
           opacity: _isFrozen ? 0.0 : 1.0,
           duration: const Duration(milliseconds: 250),
           child: Text(
@@ -305,10 +302,7 @@ class _GameScreenWrapperState extends State<GameScreenWrapper> {
       ),
       body: Stack(
         children: [
-          // Gửi trạng thái "đóng băng" xuống gameplay để dừng timer/nhập liệu
           widget.builder(context, _isFrozen),
-
-          // Chỉ hiển thị menu tạm dừng nếu lý do là MENU
           if (_interruption == _Interruption.menu)
             GamePauseMenu(
               onResumed: () => setState(() => _interruption = _Interruption.none),

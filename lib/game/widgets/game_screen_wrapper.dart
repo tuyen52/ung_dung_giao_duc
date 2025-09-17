@@ -134,7 +134,7 @@ class _GameScreenWrapperState extends State<GameScreenWrapper> {
                   ),
                 ),
                 const SizedBox(height: 16.0),
-                contentBox,
+                Flexible(child: contentBox), // Sửa lỗi overflow cho dialog
                 const SizedBox(height: 24.0),
                 if (actions.isNotEmpty)
                   Column(
@@ -255,13 +255,17 @@ class _GameScreenWrapperState extends State<GameScreenWrapper> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: Text(
-          widget.gameName,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
-            letterSpacing: 0.8,
+        title: AnimatedOpacity( // Sửa lỗi chữ đè lên nhau
+          opacity: _isFrozen ? 0.0 : 1.0,
+          duration: const Duration(milliseconds: 250),
+          child: Text(
+            widget.gameName,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 20,
+              letterSpacing: 0.8,
+            ),
           ),
         ),
         centerTitle: true,

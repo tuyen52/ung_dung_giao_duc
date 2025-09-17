@@ -209,10 +209,8 @@ class RecycleSortPlayScreenState extends State<RecycleSortPlayScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final item = _deck[_index];
-    final difficultyLabel =
-    switch (widget.game.difficulty) { 1 => 'Dễ', 2 => 'Vừa', _ => 'Khó' };
-    final score = _correct * 20 - _wrong * 10;
+    // Lấy hướng màn hình hiện tại
+    final orientation = MediaQuery.of(context).orientation;
 
     return Scaffold(
       body: Stack(
@@ -229,125 +227,192 @@ class RecycleSortPlayScreenState extends State<RecycleSortPlayScreen> {
             ),
           ),
           SafeArea(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    alignment: WrapAlignment.center,
-                    children: [
-                      _chip(
-                        icon: Icons.timer,
-                        label: widget.isPaused ? 'TẠM DỪNG' : '$_timeLeft giây',
-                        color: widget.isPaused
-                            ? Colors.orange
-                            : (_timeLeft <= 5 ? Colors.red : Colors.blue),
-                      ),
-                      _chip(
-                          icon: Icons.eco,
-                          label: 'Môi trường',
-                          color: Colors.green),
-                      _chip(
-                          icon: Icons.school,
-                          label: difficultyLabel,
-                          color: Colors.purple),
-                      _chip(
-                          icon: Icons.flag,
-                          label: 'Vòng: ${_index + 1}/$_totalRounds',
-                          color: Colors.teal),
-                      _chip(
-                          icon: Icons.stars,
-                          label: 'Điểm: $score',
-                          color: Colors.orange),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16),
-                  child: Text('Kéo vật phẩm vào thùng phù hợp',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                          shadows: [Shadow(blurRadius: 2.0, color: Colors.black)])),
-                ),
-                Expanded(
-                  child: Center(
-                    child: IgnorePointer(
-                      ignoring: widget.isPaused || _ignoreActions,
-                      child: Draggable<TrashItem>(
-                        data: item,
-                        feedback: Transform.scale(
-                          scale: 1.15,
-                          child: _trashCard(item, dragging: true),
-                        ),
-                        childWhenDragging:
-                        Opacity(opacity: .35, child: _trashCard(item)),
-                        child: _trashCard(item),
-                      ),
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      _BinTarget(
-                        key: _organicBinKey,
-                        type: TrashType.organic,
-                        label: 'Hữu cơ',
-                        onAccept: () => !widget.isPaused
-                            ? _handleAnswer(TrashType.organic)
-                            : null,
-                      ),
-                      _BinTarget(
-                        key: _inorganicBinKey,
-                        type: TrashType.inorganic,
-                        label: 'Vô cơ',
-                        onAccept: () => !widget.isPaused
-                            ? _handleAnswer(TrashType.inorganic)
-                            : null,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                  child: Row(
-                    children: [
-                      Expanded(
-                          child: OutlinedButton(
-                              onPressed:
-                              widget.isPaused || _ignoreActions ? null : _skip,
-                              style: OutlinedButton.styleFrom(
-                                  foregroundColor: Colors.white,
-                                  side: const BorderSide(color: Colors.white70)
-                              ),
-                              child: const Text('Câu mới'))),
-                      const SizedBox(width: 12),
-                      Expanded(
-                          child: FilledButton.icon(
-                              icon: const Icon(Icons.flag),
-                              label: const Text('Kết thúc'),
-                              onPressed: widget.isPaused ? null : _finish)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+            // Chọn layout dựa trên hướng màn hình
+            child: orientation == Orientation.portrait
+                ? _buildPortraitLayout()
+                : _buildLandscapeLayout(),
           ),
           if (_showCorrectOverlay)
             const Center(child: _FeedbackOverlay(isCorrect: true)),
           if (_showWrongOverlay)
             const Center(child: _FeedbackOverlay(isCorrect: false)),
+        ],
+      ),
+    );
+  }
+
+  // BỐ CỤC MÀN HÌNH DỌC
+  Widget _buildPortraitLayout() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildInfoChips(),
+        const SizedBox(height: 12),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16),
+          child: Text('Kéo vật phẩm vào thùng phù hợp',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                  shadows: [Shadow(blurRadius: 2.0, color: Colors.black)])),
+        ),
+        Expanded(
+          child: _buildDraggableTrashItem(),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              _BinTarget(
+                key: _organicBinKey,
+                type: TrashType.organic,
+                label: 'Hữu cơ',
+                onAccept: () =>
+                !widget.isPaused ? _handleAnswer(TrashType.organic) : null,
+              ),
+              _BinTarget(
+                key: _inorganicBinKey,
+                type: TrashType.inorganic,
+                label: 'Vô cơ',
+                onAccept: () =>
+                !widget.isPaused ? _handleAnswer(TrashType.inorganic) : null,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+        _buildControlButtons(),
+      ],
+    );
+  }
+
+  // BỐ CỤC MÀN HÌNH NGANG
+  Widget _buildLandscapeLayout() {
+    return Column(
+      children: [
+        _buildInfoChips(),
+        Expanded(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _BinTarget(
+                key: _organicBinKey,
+                type: TrashType.organic,
+                label: 'Hữu cơ',
+                onAccept: () =>
+                !widget.isPaused ? _handleAnswer(TrashType.organic) : null,
+              ),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text('Kéo vật phẩm vào thùng phù hợp',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                            shadows: [Shadow(blurRadius: 2.0, color: Colors.black)])),
+                    Expanded(child: _buildDraggableTrashItem()),
+                  ],
+                ),
+              ),
+              _BinTarget(
+                key: _inorganicBinKey,
+                type: TrashType.inorganic,
+                label: 'Vô cơ',
+                onAccept: () =>
+                !widget.isPaused ? _handleAnswer(TrashType.inorganic) : null,
+              ),
+            ],
+          ),
+        ),
+        _buildControlButtons(),
+      ],
+    );
+  }
+
+  // CÁC WIDGET CON ĐƯỢC TÁI SỬ DỤNG
+  Widget _buildInfoChips() {
+    final difficultyLabel =
+    switch (widget.game.difficulty) { 1 => 'Dễ', 2 => 'Vừa', _ => 'Khó' };
+    final score = _correct * 20 - _wrong * 10;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        alignment: WrapAlignment.center,
+        children: [
+          _chip(
+            icon: Icons.timer,
+            label: widget.isPaused ? 'TẠM DỪNG' : '$_timeLeft giây',
+            color: widget.isPaused
+                ? Colors.orange
+                : (_timeLeft <= 5 ? Colors.red : Colors.blue),
+          ),
+          _chip(icon: Icons.eco, label: 'Môi trường', color: Colors.green),
+          _chip(
+              icon: Icons.school,
+              label: difficultyLabel,
+              color: Colors.purple),
+          _chip(
+              icon: Icons.flag,
+              label: 'Vòng: ${_index + 1}/$_totalRounds',
+              color: Colors.teal),
+          _chip(
+              icon: Icons.stars,
+              label: 'Điểm: $score',
+              color: Colors.orange),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDraggableTrashItem() {
+    final item = _deck[_index];
+    return Center(
+      child: IgnorePointer(
+        ignoring: widget.isPaused || _ignoreActions,
+        child: Draggable<TrashItem>(
+          data: item,
+          feedback: Transform.scale(
+            scale: 1.15,
+            child: _trashCard(item, dragging: true),
+          ),
+          childWhenDragging:
+          Opacity(opacity: .35, child: _trashCard(item)),
+          child: _trashCard(item),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildControlButtons() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      child: Row(
+        children: [
+          Expanded(
+              child: OutlinedButton(
+                  onPressed:
+                  widget.isPaused || _ignoreActions ? null : _skip,
+                  style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Colors.white70)),
+                  child: const Text('Câu mới'))),
+          const SizedBox(width: 12),
+          Expanded(
+              child: FilledButton.icon(
+                  icon: const Icon(Icons.flag),
+                  label: const Text('Kết thúc'),
+                  onPressed: widget.isPaused ? null : _finish)),
         ],
       ),
     );
@@ -370,7 +435,6 @@ class RecycleSortPlayScreenState extends State<RecycleSortPlayScreen> {
         ]),
       );
 
-  // --- CẬP NHẬT WIDGET _TRASHCARD ---
   Widget _trashCard(TrashItem item, {bool dragging = false}) => Card(
     color: Colors.transparent,
     elevation: 0,
@@ -378,7 +442,7 @@ class RecycleSortPlayScreenState extends State<RecycleSortPlayScreen> {
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 22),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Image.asset(     // Thay thế Text bằng Image.asset
+        Image.asset(
           item.imagePath,
           width: 64,
           height: 64,

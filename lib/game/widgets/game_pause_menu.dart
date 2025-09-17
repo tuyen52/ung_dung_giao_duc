@@ -9,14 +9,12 @@ class GamePauseMenu extends StatelessWidget {
     required this.onResumed,
     required this.onRestart,
     this.onSettings,
-    this.onHandbook,
     required this.onExit,
   });
 
   final VoidCallback onResumed;
   final VoidCallback onRestart;
   final VoidCallback? onSettings;
-  final VoidCallback? onHandbook;
   final VoidCallback onExit;
 
   @override
@@ -84,20 +82,6 @@ class GamePauseMenu extends StatelessWidget {
                           icon: Icons.settings_rounded,
                           text: 'CÀI ĐẶT',
                           onPressed: onSettings,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                    ],
-
-                    // HƯỚNG DẪN (nếu có)
-                    if (onHandbook != null) ...[
-                      _semanticButton(
-                        label: 'Xem hướng dẫn',
-                        child: _menuButton(
-                          context,
-                          icon: Icons.menu_book_rounded,
-                          text: 'HƯỚNG DẪN',
-                          onPressed: onHandbook,
                         ),
                       ),
                       const SizedBox(height: 12),

@@ -121,9 +121,35 @@ class PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
     _initializeGame();
   }
 
+  /// Kiểm tra dữ liệu loài: tolerance phải >= optimal.high (tránh cấu hình "không bao giờ vào xanh")
+  void _validateSpeciesData() {
+    for (final e in plantSpeciesData.entries) {
+      final sp = e.value;
+      assert(sp.optimalWater.low <= sp.optimalWater.high,
+      'Invalid optimal water range for ${sp.name}');
+      assert(sp.optimalLight.low <= sp.optimalLight.high,
+      'Invalid optimal light range for ${sp.name}');
+      assert(sp.optimalNutrient.low <= sp.optimalNutrient.high,
+      'Invalid optimal nutrient range for ${sp.name}');
+
+      assert(sp.waterTolerance >= sp.optimalWater.high,
+      'Water tolerance of ${sp.name} < optimal.high');
+      assert(sp.lightTolerance >= sp.optimalLight.high,
+      'Light tolerance of ${sp.name} < optimal.high');
+      assert(sp.nutrientTolerance >= sp.optimalNutrient.high,
+      'Nutrient tolerance of ${sp.name} < optimal.high');
+    }
+  }
+
   void _initializeGame() {
     _plants.clear();
     final cfg = _cfg;
+
+    // Kiểm tra cấu hình loài (chạy ở debug)
+    assert(() {
+      _validateSpeciesData();
+      return true;
+    }());
 
     final plantTypesToSpawn = [
       PlantType.normal, PlantType.cactus, PlantType.fern, PlantType.normal
@@ -207,6 +233,27 @@ class PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
     return min(cappedOk, tolerance).clamp(0.0, 100.0);
   }
 
+  /// ===== NEW: Áp tiến độ + lên stage CÓ GIỮ PHẦN TRÀN =====
+  void _applyGrowthAndStage(Plant plant, int dayScore, DifficultyConfig cfg) {
+    var gp = plant.growthProgress + dayScore * cfg.growthMul;
+
+    // Có thể lên nhiều stage trong cùng 1 ngày nếu đủ điểm
+    while (gp >= 100 && plant.stage != PlantStage.raHoa) {
+      gp -= 100; // GIỮ phần tràn qua stage mới
+      plant.stage = PlantStage.values[plant.stage.index + 1];
+      plant.label = plantStageCreativeNames[plant.stage]!;
+      plant.animationTrigger = AnimationTrigger.healthy;
+      plant.animationCounter++;
+      plant.quests = generateQuestsForStage(plant.stage);
+    }
+
+    plant.growthProgress = clampInt(gp, 0, 100);
+
+    if (plant.stage == PlantStage.raHoa && plant.growthProgress >= 100) {
+      plant.isCompleted = true;
+    }
+  }
+
   // ===== Kết thúc ngày: decay (theo thời tiết & độ khó) + chấm điểm + quest + stage =====
   void _endDay() {
     setState(() {
@@ -253,14 +300,15 @@ class PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
               break;
             case QuestType.handlePestsOnce:
             case QuestType.pruneOnce:
-            // đánh dấu ở _applyTool khi xử lý sâu/tỉa
+            // đánh dấu ở _applyTool
               break;
           }
         }
 
         plant.lastDailyScore = dayScore;
-        // 4) Quy đổi điểm → tiến độ theo độ khó
-        plant.growthProgress = clampInt(plant.growthProgress + (dayScore * cfg.growthMul), 0, 100);
+
+        // 4) NEW: quy đổi điểm → tiến độ + lên stage GIỮ PHẦN TRÀN
+        _applyGrowthAndStage(plant, dayScore, cfg);
 
         // 5) Sticker
         final s = stickerFromScore(dayScore);
@@ -276,19 +324,7 @@ class PlantCarePlayScreenState extends State<PlantCarePlayScreen> {
           plant.animationCounter++;
         }
 
-        // 7) Lên stage / hoàn thành
-        if (plant.growthProgress >= 100 && plant.stage != PlantStage.raHoa) {
-          plant.stage = PlantStage.values[plant.stage.index + 1];
-          plant.label = plantStageCreativeNames[plant.stage]!;
-          plant.growthProgress = 0;
-          plant.animationTrigger = AnimationTrigger.healthy;
-          plant.animationCounter++;
-          plant.quests = generateQuestsForStage(plant.stage);
-        } else if (plant.stage == PlantStage.raHoa && plant.growthProgress >= 100) {
-          plant.isCompleted = true;
-        }
-
-        // 8) Sự kiện nhỏ theo độ khó
+        // 7) Sự kiện nhỏ theo độ khó
         if (!plant.pests && _rnd.nextDouble() < _cfg.pestChance) {
           plant.pests = true;
         }

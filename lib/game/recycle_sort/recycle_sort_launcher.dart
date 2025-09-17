@@ -126,6 +126,7 @@ class _RecycleSortGameLauncherState extends State<RecycleSortGameLauncher> {
 
     return GameScreenWrapper(
       gameName: _gameName,
+      showHandbookOnStart: true, // ✅ TỰ ĐỘNG hiện hướng dẫn khi vào game
       onFinishAndExit: () {
         _playScreenKey.currentState?.finishGame();
       },
@@ -133,21 +134,25 @@ class _RecycleSortGameLauncherState extends State<RecycleSortGameLauncher> {
         _playScreenKey.currentState?.outToHome();
       },
       onRestart: _restartGame,
-      // CẬP NHẬT: Truyền nội dung Sổ tay
+
+      // Nội dung sổ tay (dễ hiểu cho trẻ 5–12 tuổi)
       handbookContent: const Text(
-        'Kéo và thả các vật phẩm vào đúng thùng rác tương ứng:\n\n'
-            '• Thùng Hữu cơ: Dành cho rác dễ phân hủy như thức ăn thừa, vỏ trái cây, lá cây...\n\n'
-            '• Thùng Vô cơ: Dành cho các loại rác khó phân hủy như chai nhựa, túi nylon, kim loại, pin...',
+        'CÁCH CHƠI\n\n'
+            '• Kéo vật phẩm vào đúng thùng rác.\n'
+            '• Thùng Hữu cơ: đồ ăn thừa, vỏ trái cây, lá cây...\n'
+            '• Thùng Vô cơ: chai nhựa, lon kim loại, túi nylon, pin...\n\n'
+            'Mẹo: Nhìn hình trên vật phẩm để đoán loại rác. Sai cũng không sao, thử lại nhé!',
         textAlign: TextAlign.center,
         style: TextStyle(color: Colors.white70, fontSize: 16.0),
       ),
+
       builder: (context, isPaused) {
         return RecycleSortPlayScreen(
           key: _playScreenKey,
           isPaused: isPaused,
           game: game,
-          onFinish: (c, w) => WidgetsBinding.instance
-              .addPostFrameCallback((_) => _finishAndSave(c, w)),
+          onFinish: (c, w) =>
+              WidgetsBinding.instance.addPostFrameCallback((_) => _finishAndSave(c, w)),
           onSaveProgress: ({
             required List<String> deck,
             required int index,

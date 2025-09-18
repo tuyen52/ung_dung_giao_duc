@@ -4,99 +4,150 @@ import 'package:google_fonts/google_fonts.dart';
 import '../game/core/game_registry.dart';
 import 'game_select_screen.dart';
 
-class GameListScreen extends StatelessWidget {
+class GameListScreen extends StatefulWidget {
   const GameListScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final allGames = GameRegistry.games;
+  State<GameListScreen> createState() => _GameListScreenState();
+}
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Thế Giới Khám Phá Của Bé',
-          style: GoogleFonts.quicksand(
-            fontWeight: FontWeight.w900,
-            fontSize: 26,
-            color: Colors.white,
-            shadows: const [
-              Shadow(
-                offset: Offset(2.0, 2.0),
-                blurRadius: 5.0,
-                color: Color.fromARGB(150, 0, 0, 0),
-              ),
+class _GameListScreenState extends State<GameListScreen> {
+  final allGames = GameRegistry.games;
+
+  @override
+  Widget build(BuildContext context) {
+    return OrientationBuilder(
+      builder: (context, orientation) {
+        // Tái sử dụng cùng một Scaffold và AppBar cho cả hai chế độ
+        return Scaffold(
+          appBar: _buildSharedAppBar(), // Dùng chung AppBar
+          body: Stack(
+            children: [
+              // Dùng chung nền trang trí
+              _buildDecorativeBackground(),
+              // Xây dựng GridView tùy theo hướng màn hình
+              if (orientation == Orientation.landscape)
+                _buildLandscapeGridView()
+              else
+                _buildPortraitGridView(),
             ],
           ),
-        ),
-        centerTitle: true,
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                Color(0xFF8E24AA),
-                Color(0xFFBA68C8),
-                Color(0xFFCE93D8),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+        );
+      },
+    );
+  }
+
+  // Widget xây dựng AppBar, được dùng chung cho cả hai chế độ
+  AppBar _buildSharedAppBar() {
+    return AppBar(
+      title: Text(
+        'Thế Giới Khám Phá Của Bé',
+        style: GoogleFonts.quicksand(
+          fontWeight: FontWeight.w900,
+          fontSize: 26,
+          color: Colors.white,
+          shadows: const [
+            Shadow(
+              offset: Offset(2.0, 2.0),
+              blurRadius: 5.0,
+              color: Color.fromARGB(150, 0, 0, 0),
             ),
+          ],
+        ),
+      ),
+      centerTitle: true,
+      flexibleSpace: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Color(0xFF8E24AA),
+              Color(0xFFBA68C8),
+              Color(0xFFCE93D8),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
         ),
-        elevation: 15,
       ),
-      body: Stack(
-        children: [
-          // Lớp nền với gradient tươi sáng và các hình trang trí
-          Positioned.fill(
-            child: Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Color(0xFFFDE8E9),
-                    Color(0xFFE0F7FA),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+      elevation: 15,
+    );
+  }
+
+  // Widget xây dựng GridView cho chế độ dọc (PORTRAIT)
+  Widget _buildPortraitGridView() {
+    return GridView.builder(
+      padding: const EdgeInsets.all(25),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2, // 2 cột
+        crossAxisSpacing: 25,
+        mainAxisSpacing: 25,
+        childAspectRatio: 0.8,
+      ),
+      itemCount: allGames.length,
+      itemBuilder: (context, index) {
+        final gameInfo = allGames[index];
+        return AnimatedGameCard(gameInfo: gameInfo);
+      },
+    );
+  }
+
+  // Widget chỉ xây dựng GridView cho chế độ ngang (LANDSCAPE)
+  Widget _buildLandscapeGridView() {
+    return GridView.builder(
+      padding: const EdgeInsets.fromLTRB(25, 20, 25, 20), // Điều chỉnh padding
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 4, // 4 cột
+        crossAxisSpacing: 20,
+        mainAxisSpacing: 20,
+        childAspectRatio: 0.9, // Điều chỉnh tỉ lệ
+      ),
+      itemCount: allGames.length,
+      itemBuilder: (context, index) {
+        final gameInfo = allGames[index];
+        return AnimatedGameCard(gameInfo: gameInfo);
+      },
+    );
+  }
+
+  // Widget xây dựng nền trang trí
+  Widget _buildDecorativeBackground() {
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Color(0xFFFDE8E9),
+                  Color(0xFFE0F7FA),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
             ),
           ),
-          Positioned(
-            top: MediaQuery.of(context).size.height * 0.05,
-            left: -30,
-            child: Icon(Icons.cloud_queue, size: 100, color: Colors.white.withOpacity(0.4)),
-          ),
-          Positioned(
-            bottom: MediaQuery.of(context).size.height * 0.1,
-            right: -20,
-            child: Icon(Icons.star, size: 80, color: Colors.yellow.withOpacity(0.3)),
-          ),
-          Positioned(
-            top: MediaQuery.of(context).size.height * 0.2,
-            right: -10,
-            child: Icon(Icons.favorite, size: 60, color: Colors.red.withOpacity(0.2)),
-          ),
-          // Lớp nội dung chính là GridView của các game
-          GridView.builder(
-            padding: const EdgeInsets.all(25),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 25,
-              mainAxisSpacing: 25,
-              childAspectRatio: 0.8,
-            ),
-            itemCount: allGames.length,
-            itemBuilder: (context, index) {
-              final gameInfo = allGames[index];
-              return AnimatedGameCard(gameInfo: gameInfo);
-            },
-          ),
-        ],
-      ),
+        ),
+        Positioned(
+          top: MediaQuery.of(context).size.height * 0.05,
+          left: -30,
+          child: Icon(Icons.cloud_queue, size: 100, color: Colors.white.withOpacity(0.4)),
+        ),
+        Positioned(
+          bottom: MediaQuery.of(context).size.height * 0.1,
+          right: -20,
+          child: Icon(Icons.star, size: 80, color: Colors.yellow.withOpacity(0.3)),
+        ),
+        Positioned(
+          top: MediaQuery.of(context).size.height * 0.2,
+          right: -10,
+          child: Icon(Icons.favorite, size: 60, color: Colors.red.withOpacity(0.2)),
+        ),
+      ],
     );
   }
 }
 
+// PHẦN AnimatedGameCard GIỮ NGUYÊN, KHÔNG THAY ĐỔI
 class AnimatedGameCard extends StatefulWidget {
   final GameInfo gameInfo;
 

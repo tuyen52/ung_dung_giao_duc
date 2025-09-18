@@ -22,7 +22,9 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _login() async {
+    // Đã tích hợp logic validation mới, chỉ cần gọi validate()
     if (!_formKey.currentState!.validate()) return;
+
     setState(() => _busy = true);
     try {
       await FirebaseAuth.instance.signInWithEmailAndPassword(
@@ -41,6 +43,32 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) setState(() => _busy = false);
     }
   }
+
+  // LOGIC MỚI: Hàm kiểm tra định dạng email chặt chẽ hơn
+  String? _validateEmail(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Vui lòng nhập email';
+    }
+    // Sử dụng Regular Expression để kiểm tra định dạng email chuẩn
+    const pattern = r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$';
+    final regExp = RegExp(pattern);
+    if (!regExp.hasMatch(value)) {
+      return 'Email không hợp lệ';
+    }
+    return null;
+  }
+
+  // LOGIC MỚI: Hàm kiểm tra mật khẩu
+  String? _validatePassword(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Vui lòng nhập mật khẩu';
+    }
+    if (value.length < 6) {
+      return 'Mật khẩu tối thiểu 6 ký tự';
+    }
+    return null;
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -69,8 +97,7 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
-
-  // WIDGET CHO LAYOUT DỌC (PORTRAIT)
+// WIDGET CHO LAYOUT DỌC (PORTRAIT)
   Widget _buildPortraitLayout() {
     return SafeArea(
       child: Center(
@@ -244,7 +271,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   contentPadding: const EdgeInsets.symmetric(vertical: 20, horizontal: 15),
                 ),
                 keyboardType: TextInputType.emailAddress,
-                validator: (v) => (v == null || v.isEmpty) ? 'Vui lòng nhập email' : null,
+                // THAY ĐỔI: Sử dụng hàm validator mới
+                validator: _validateEmail,
                 cursorColor: const Color(0xFF00897B),
               ),
               const SizedBox(height: 20),
@@ -278,7 +306,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 obscureText: _obscure,
-                validator: (v) => (v == null || v.length < 6) ? 'Mật khẩu tối thiểu 6 ký tự' : null,
+                // THAY ĐỔI: Sử dụng hàm validator mới
+                validator: _validatePassword,
                 cursorColor: const Color(0xFF00897B),
               ),
               const SizedBox(height: 35),

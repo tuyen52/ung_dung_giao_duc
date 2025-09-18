@@ -102,132 +102,183 @@ class _RegisterChildScreenState extends State<RegisterChildScreen> {
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [
-              Color(0xFF8EC5FC),
-              Color(0xFFE0C3FC),
-            ],
+            colors: [Color(0xFF8EC5FC), Color(0xFFE0C3FC)],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
         ),
-        child: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return SingleChildScrollView(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                  child: IntrinsicHeight(
-                    child: Column(
-                      children: [
-                        // --- THAY ĐỔI BẮT ĐẦU TỪ ĐÂY ---
-
-                        const SizedBox(height: 20), // Giảm khoảng trống trên cùng
-                        Text(
-                          'Thêm Hồ Sơ Của Bé',
-                          style: GoogleFonts.balsamiqSans(
-                            fontSize: 26, // Giảm kích thước font
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                            shadows: [
-                              Shadow(
-                                offset: Offset(2, 2),
-                                blurRadius: 4.0,
-                                color: Colors.black.withOpacity(0.3),
-                              ),
-                            ],
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 15), // Giảm khoảng trống
-                        const Icon(
-                          Icons.child_care_rounded,
-                          size: 100, // Giảm kích thước icon
-                          color: Colors.white,
-                        ),
-                        const SizedBox(height: 25), // Giảm khoảng trống
-
-                        // --- THAY ĐỔI KẾT THÚC TẠI ĐÂY ---
-
-                        Container(
-                          padding: const EdgeInsets.all(24),
-                          margin: const EdgeInsets.symmetric(horizontal: 20),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.95),
-                            borderRadius: BorderRadius.circular(30),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
-                                blurRadius: 20,
-                                offset: const Offset(0, 10),
-                              ),
-                            ],
-                          ),
-                          child: Form(
-                            key: _formKey,
-                            child: Column(
-                              children: [
-                                _buildTextField(
-                                  controller: _hoTenCtrl,
-                                  labelText: 'Họ và Tên',
-                                  icon: Icons.person_outline,
-                                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Họ tên không được để trống' : null,
-                                ),
-                                const SizedBox(height: 16),
-                                _buildGioiTinhDropdown(),
-                                const SizedBox(height: 16),
-                                _buildNgaySinhField(context),
-                                const SizedBox(height: 16),
-                                _buildTextField(
-                                  controller: _soThichCtrl,
-                                  labelText: 'Sở Thích',
-                                  icon: Icons.favorite_outline,
-                                ),
-                                const SizedBox(height: 30),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: ElevatedButton.icon(
-                                    onPressed: _busy ? null : _save,
-                                    icon: _busy
-                                        ? const SizedBox(
-                                      width: 24, height: 24,
-                                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
-                                    )
-                                        : const Icon(Icons.save, color: Colors.white),
-                                    label: Text(
-                                      _busy ? 'Đang Lưu...' : 'Lưu Hồ Sơ',
-                                      style: GoogleFonts.balsamiqSans(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 18,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(vertical: 16),
-                                      backgroundColor: const Color(0xFF8E24AA),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(50),
-                                      ),
-                                      elevation: 8,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const Spacer(),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
+        // SỬ DỤNG OrientationBuilder ĐỂ TẠO GIAO DIỆN XOAY NGANG
+        child: OrientationBuilder(
+          builder: (context, orientation) {
+            // Nếu là xoay ngang, sử dụng layout 2 cột
+            if (orientation == Orientation.landscape) {
+              return _buildLandscapeLayout();
+            }
+            // Mặc định là layout dọc
+            return _buildPortraitLayout();
+          },
         ),
       ),
     );
   }
 
+  // Widget cho layout dọc (giữ nguyên code cũ)
+  Widget _buildPortraitLayout() {
+    return SafeArea(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: IntrinsicHeight(
+                child: Column(
+                  children: [
+                    _buildHeader(), // Tách phần header ra
+                    const SizedBox(height: 25),
+                    _buildForm(), // Tách phần form ra
+                    const Spacer(),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // Widget cho layout xoay ngang
+  Widget _buildLandscapeLayout() {
+    return SafeArea(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Cột bên trái: Header
+          Expanded(
+            flex: 2, // Chiếm 2/5 không gian
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                child: _buildHeader(),
+              ),
+            ),
+          ),
+          // Cột bên phải: Form
+          Expanded(
+            flex: 3, // Chiếm 3/5 không gian
+            child: SingleChildScrollView(
+              child: _buildForm(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Widget chứa phần Header (Tiêu đề và Icon)
+  Widget _buildHeader() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center, // Căn giữa nội dung
+      children: [
+        const SizedBox(height: 20),
+        Text(
+          'Thêm Hồ Sơ Của Bé',
+          style: GoogleFonts.balsamiqSans(
+            fontSize: 26,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+            shadows: [
+              Shadow(
+                offset: const Offset(2, 2),
+                blurRadius: 4.0,
+                color: Colors.black.withOpacity(0.3),
+              ),
+            ],
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 15),
+        const Icon(
+          Icons.child_care_rounded,
+          size: 100,
+          color: Colors.white,
+        ),
+      ],
+    );
+  }
+
+  // Widget chứa Form nhập liệu
+  Widget _buildForm() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.95),
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          children: [
+            _buildTextField(
+              controller: _hoTenCtrl,
+              labelText: 'Họ và Tên',
+              icon: Icons.person_outline,
+              validator: (v) => (v == null || v.trim().isEmpty) ? 'Họ tên không được để trống' : null,
+            ),
+            const SizedBox(height: 16),
+            _buildGioiTinhDropdown(),
+            const SizedBox(height: 16),
+            _buildNgaySinhField(context),
+            const SizedBox(height: 16),
+            _buildTextField(
+              controller: _soThichCtrl,
+              labelText: 'Sở Thích',
+              icon: Icons.favorite_outline,
+            ),
+            const SizedBox(height: 30),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _busy ? null : _save,
+                icon: _busy
+                    ? const SizedBox(
+                  width: 24, height: 24,
+                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
+                )
+                    : const Icon(Icons.save, color: Colors.white),
+                label: Text(
+                  _busy ? 'Đang Lưu...' : 'Lưu Hồ Sơ',
+                  style: GoogleFonts.balsamiqSans(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                    color: Colors.white,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  backgroundColor: const Color(0xFF8E24AA),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(50),
+                  ),
+                  elevation: 8,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --- Các widget build TextField, Dropdown, DatePicker giữ nguyên như cũ ---
   Widget _buildTextField({
     required TextEditingController controller,
     required String labelText,
@@ -302,7 +353,7 @@ class _RegisterChildScreenState extends State<RegisterChildScreen> {
       decoration: InputDecoration(
         labelText: 'Ngày Sinh',
         labelStyle: GoogleFonts.balsamiqSans(color: Colors.grey[700]),
-        prefixIcon: const Icon(Icons.cake_outlined, color: Color(0xFFBA68C8)),
+        prefixIcon: const Icon(Icons.cake_outlined, color: const Color(0xFFBA68C8)),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(25),
           borderSide: BorderSide.none,

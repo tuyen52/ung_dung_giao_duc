@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart'; // Đảm bảo đã cài đặt trong pubspec.yaml
+import 'package:google_fonts/google_fonts.dart';
 import '../services/reward_service.dart';
 import '../models/reward.dart';
 
@@ -20,15 +20,15 @@ class RewardScreen extends StatelessWidget {
           ),
         ),
         centerTitle: true,
-        backgroundColor: Colors.transparent, // AppBar trong suốt để gradient nền body hiển thị
+        backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white), // Đổi màu icon back thành trắng
+        iconTheme: const IconThemeData(color: Colors.white),
         flexibleSpace: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                Color(0xFF8EC5FC), // Màu xanh dương nhạt
-                Color(0xFFE0C3FC), // Màu tím hồng nhạt
+                Color(0xFF8EC5FC),
+                Color(0xFFE0C3FC),
               ],
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
@@ -57,19 +57,18 @@ class RewardScreen extends StatelessWidget {
 
             return RefreshIndicator(
               onRefresh: () async {
-                // Logic tải lại dữ liệu từ Firebase nếu cần (hiện tại StreamBuilder đã tự động làm)
-                await Future.delayed(const Duration(seconds: 1)); // Mô phỏng tải lại
+                await Future.delayed(const Duration(seconds: 1));
               },
-              child: ListView(
-                padding: const EdgeInsets.all(24),
-                physics: const AlwaysScrollableScrollPhysics(), // Luôn cho phép cuộn để RefreshIndicator hoạt động
-                children: [
-                  _buildScoreCard(context, reward),
-                  const SizedBox(height: 24),
-                  _buildMedalCard(reward),
-                  const SizedBox(height: 24),
-                  _buildInfoCard(context, reward),
-                ],
+              child: OrientationBuilder(
+                builder: (context, orientation) {
+                  if (orientation == Orientation.landscape) {
+                    // Trả về giao diện cho màn hình ngang với bố cục mới
+                    return _buildLandscapeLayout(context, reward);
+                  } else {
+                    // Trả về giao diện cho màn hình đứng
+                    return _buildPortraitLayout(context, reward);
+                  }
+                },
               ),
             );
           },
@@ -78,16 +77,64 @@ class RewardScreen extends StatelessWidget {
     );
   }
 
+  // Giao diện cho màn hình đứng (Portrait)
+  Widget _buildPortraitLayout(BuildContext context, Reward reward) {
+    return ListView(
+      padding: const EdgeInsets.all(24),
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: [
+        _buildScoreCard(context, reward),
+        const SizedBox(height: 24),
+        _buildMedalCard(reward),
+        const SizedBox(height: 24),
+        _buildInfoCard(context, reward),
+      ],
+    );
+  }
+
+  // *** BẮT ĐẦU PHẦN MỚI: GIAO DIỆN NGANG VỚI BỐ CỤC 2 HÀNG ***
+  Widget _buildLandscapeLayout(BuildContext context, Reward reward) {
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        // Cấu trúc chính là một cột
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Hàng trên cùng chứa Điểm và Huy chương
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Thẻ điểm chiếm 1 nửa bên trái
+              Expanded(
+                child: _buildScoreCard(context, reward),
+              ),
+              const SizedBox(width: 24),
+              // Thẻ huy chương chiếm 1 nửa bên phải
+              Expanded(
+                child: _buildMedalCard(reward),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          // Hàng dưới cùng chứa thông tin chi tiết
+          _buildInfoCard(context, reward),
+        ],
+      ),
+    );
+  }
+  // *** KẾT THÚC PHẦN MỚI ***
+
   Widget _buildScoreCard(BuildContext context, Reward reward) {
     return Card(
-      elevation: 10, // Tăng độ nổi bật
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)), // Bo tròn nhiều hơn
+      elevation: 10,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
       child: Container(
         decoration: BoxDecoration(
           gradient: const LinearGradient(
             colors: [
-              Color(0xFFFFA726), // Orange
-              Color(0xFFFFCC80), // Light Orange
+              Color(0xFFFFA726),
+              Color(0xFFFFCC80),
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -101,16 +148,16 @@ class RewardScreen extends StatelessWidget {
             ),
           ],
         ),
-        padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20), // Tăng padding
+        padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.star, color: Colors.white, size: 50), // Icon lớn hơn
+            const Icon(Icons.star, color: Colors.white, size: 50),
             const SizedBox(width: 16),
             Text(
               "${reward.points}",
               style: GoogleFonts.balsamiqSans(
-                fontSize: 60, // Cỡ chữ lớn hơn
+                fontSize: 60,
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
                 shadows: [
@@ -126,7 +173,7 @@ class RewardScreen extends StatelessWidget {
             Text(
               "Điểm",
               style: GoogleFonts.balsamiqSans(
-                fontSize: 28, // Cỡ chữ lớn hơn
+                fontSize: 28,
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
               ),
@@ -157,24 +204,9 @@ class RewardScreen extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _badge(
-                  Icons.emoji_events, // Icon thay thế cho ảnh
-                  "Vàng",
-                  reward.gold,
-                  const Color(0xFFFFD700), // Màu vàng cho huy chương vàng
-                ),
-                _badge(
-                  Icons.emoji_events, // Icon thay thế cho ảnh
-                  "Bạc",
-                  reward.silver,
-                  const Color(0xFFC0C0C0), // Màu bạc cho huy chương bạc
-                ),
-                _badge(
-                  Icons.emoji_events, // Icon thay thế cho ảnh
-                  "Đồng",
-                  reward.bronze,
-                  const Color(0xFFCD7F32), // Màu đồng cho huy chương đồng
-                ),
+                _badge(Icons.emoji_events, "Vàng", reward.gold, const Color(0xFFFFD700)),
+                _badge(Icons.emoji_events, "Bạc", reward.silver, const Color(0xFFC0C0C0)),
+                _badge(Icons.emoji_events, "Đồng", reward.bronze, const Color(0xFFCD7F32)),
               ],
             ),
           ],
@@ -225,7 +257,7 @@ class RewardScreen extends StatelessWidget {
   Widget _badge(IconData icon, String label, int count, Color medalColor) {
     return Column(
       children: [
-        Icon(icon, size: 50, color: medalColor), // Sử dụng Icon và màu sắc
+        Icon(icon, size: 50, color: medalColor),
         const SizedBox(height: 8),
         Text(
           label,
@@ -237,7 +269,7 @@ class RewardScreen extends StatelessWidget {
         Text(
           "$count",
           style: GoogleFonts.balsamiqSans(
-            fontSize: 24, // Cỡ chữ lớn hơn cho số lượng huy chương
+            fontSize: 24,
             fontWeight: FontWeight.bold,
             color: const Color(0xFF6A1B9A),
           ),

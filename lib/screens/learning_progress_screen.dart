@@ -64,35 +64,45 @@ class _LearningProgressScreenState extends State<LearningProgressScreen> {
             end: Alignment.bottomCenter,
           ),
         ),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
-              child: _TrePicker(
-                parentUid: user.uid,
-                selectedTreId: _selectedTreId,
-                onChanged: (id) => setState(() => _selectedTreId = id),
-              ),
-            ),
-            const Divider(height: 0, color: Colors.white54),
-            Expanded(
-              child: _selectedTreId == null
-                  ? Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Text(
-                    'Hãy chọn một hồ sơ trẻ để xem tiến độ.',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.quicksand(
-                      fontSize: 18,
-                      color: Colors.white,
-                    ),
+        // SỬ DỤNG ORIENTATIONBUILDER ĐỂ THAY ĐỔI PADDING
+        child: OrientationBuilder(
+          builder: (context, orientation) {
+            // Tính toán padding ngang dựa trên hướng màn hình
+            final double horizontalPadding =
+            orientation == Orientation.landscape ? MediaQuery.of(context).size.width / 4.5 : 24.0;
+
+            return Column(
+              children: [
+                Padding(
+                  // Áp dụng padding đã tính toán
+                  padding: EdgeInsets.fromLTRB(horizontalPadding, 24, horizontalPadding, 12),
+                  child: _TrePicker(
+                    parentUid: user.uid,
+                    selectedTreId: _selectedTreId,
+                    onChanged: (id) => setState(() => _selectedTreId = id),
                   ),
                 ),
-              )
-                  : _GameProgressList(treId: _selectedTreId!),
-            ),
-          ],
+                const Divider(height: 0, color: Colors.white54),
+                Expanded(
+                  child: _selectedTreId == null
+                      ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Text(
+                        'Hãy chọn một hồ sơ trẻ để xem tiến độ.',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.quicksand(
+                          fontSize: 18,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  )
+                      : _GameProgressList(treId: _selectedTreId!),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -126,6 +136,7 @@ class _TrePicker extends StatelessWidget {
           );
         }
 
+        // Use the first child's ID as the default if none is selected
         final value = selectedTreId ?? list.first.id;
 
         return Container(
@@ -246,11 +257,29 @@ class _GameProgressList extends StatelessWidget {
           );
         }
 
-        return ListView.separated(
-          padding: const EdgeInsets.all(24),
-          itemBuilder: (_, i) => _GameProgressCard(agg: games[i]),
-          separatorBuilder: (_, __) => const SizedBox(height: 16),
-          itemCount: games.length,
+        return OrientationBuilder(
+          builder: (context, orientation) {
+            if (orientation == Orientation.landscape) {
+              return GridView.builder(
+                padding: const EdgeInsets.all(24),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 16,
+                  childAspectRatio: 1.6,
+                ),
+                itemCount: games.length,
+                itemBuilder: (_, i) => _GameProgressCard(agg: games[i]),
+              );
+            } else {
+              return ListView.separated(
+                padding: const EdgeInsets.all(24),
+                itemBuilder: (_, i) => _GameProgressCard(agg: games[i]),
+                separatorBuilder: (_, __) => const SizedBox(height: 16),
+                itemCount: games.length,
+              );
+            }
+          },
         );
       },
     );

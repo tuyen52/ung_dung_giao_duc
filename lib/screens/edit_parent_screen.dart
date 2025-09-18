@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Import để sử dụng TextInputFormatter
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/user_service.dart';
@@ -66,6 +67,7 @@ class _EditParentScreenState extends State<EditParentScreen> with SingleTickerPr
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
+
     final u = FirebaseAuth.instance.currentUser;
     if (u == null) return;
 
@@ -133,139 +135,211 @@ class _EditParentScreenState extends State<EditParentScreen> with SingleTickerPr
         ),
         child: _loading
             ? const Center(child: CircularProgressIndicator(color: Colors.white))
-            : LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                child: Column( // <- BỎ IntrinsicHeight
-                  children: [
-                    SizedBox(height: MediaQuery.of(context).padding.top + 20),
-                    Text(
-                      'Chỉnh Sửa Hồ Sơ Phụ Huynh',
-                      style: GoogleFonts.balsamiqSans(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        shadows: [
-                          Shadow(
-                            offset: Offset(2, 2),
-                            blurRadius: 4.0,
-                            color: Colors.black.withOpacity(0.3),
-                          ),
-                        ],
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 20),
-                    AnimatedBuilder(
-                      animation: _iconAnimationController,
-                      builder: (context, child) {
-                        return Transform.rotate(
-                          angle: _iconAnimation.value,
-                          child: const Icon(
-                            Icons.person_pin,
-                            size: 120,
-                            color: Colors.white,
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 30),
-                    Container(
-                      padding: const EdgeInsets.all(24),
-                      margin: const EdgeInsets.symmetric(horizontal: 20),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.95),
-                        borderRadius: BorderRadius.circular(30),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 20,
-                            offset: const Offset(0, 10),
-                          ),
-                        ],
-                      ),
-                      child: Form(
-                        key: _formKey,
-                        child: Column(
-                          children: [
-                            _buildTextField(
-                              controller: _nameCtrl,
-                              labelText: 'Họ và tên',
-                              icon: Icons.person_outline,
-                              validator: (v) => (v == null || v.isEmpty) ? 'Không được để trống' : null,
-                            ),
-                            const SizedBox(height: 16),
-                            _buildTextField(
-                              controller: _usernameCtrl,
-                              labelText: 'Tên đăng nhập',
-                              icon: Icons.account_circle_outlined,
-                            ),
-                            const SizedBox(height: 16),
-                            _buildTextField(
-                              controller: _emailCtrl,
-                              labelText: 'Email',
-                              icon: Icons.email_outlined,
-                              enabled: false,
-                              readOnly: true,
-                              helperText: 'Muốn đổi email: dùng nút "Đổi email" ở màn Hồ sơ.',
-                            ),
-                            const SizedBox(height: 16),
-                            _buildTextField(
-                              controller: _phoneCtrl,
-                              labelText: 'Số điện thoại',
-                              icon: Icons.phone_outlined,
-                              keyboardType: TextInputType.phone,
-                            ),
-                            const SizedBox(height: 16),
-                            _buildTextField(
-                              controller: _addressCtrl,
-                              labelText: 'Địa chỉ',
-                              icon: Icons.home_outlined,
-                            ),
-                            const SizedBox(height: 30),
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton.icon(
-                                onPressed: _saving ? null : _save,
-                                icon: _saving
-                                    ? const SizedBox(
-                                  width: 24,
-                                  height: 24,
-                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
-                                )
-                                    : const Icon(Icons.save, color: Colors.white),
-                                label: Text(
-                                  _saving ? 'Đang lưu...' : 'Lưu Thay Đổi',
-                                  style: GoogleFonts.balsamiqSans(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 18,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(vertical: 16),
-                                  backgroundColor: const Color(0xFF6A1B9A),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(50),
-                                  ),
-                                  elevation: 8,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    // const Spacer(), // <- BỎ Spacer()
-                    // Thêm khoảng trống ở dưới để nội dung không bị dính sát đáy
-                    SizedBox(height: MediaQuery.of(context).padding.bottom + 20),
-                  ],
-                ),
+        // Sử dụng OrientationBuilder để thay đổi layout dựa trên hướng màn hình
+            : OrientationBuilder(
+          builder: (context, orientation) {
+            if (orientation == Orientation.portrait) {
+              return _buildPortraitLayout();
+            } else {
+              return _buildLandscapeLayout();
+            }
+          },
+        ),
+      ),
+    );
+  }
+
+  /// Giao diện cho chiều dọc (Portrait)
+  Widget _buildPortraitLayout() {
+    return SingleChildScrollView(
+      child: Padding(
+        padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 20, bottom: 20),
+        child: Column(
+          children: [
+            _buildHeader(),
+            const SizedBox(height: 30),
+            _buildFormContent(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Giao diện cho chiều ngang (Landscape)
+  Widget _buildLandscapeLayout() {
+    return SafeArea(
+      child: Row(
+        children: [
+          // Cột bên trái: Header
+          Expanded(
+            flex: 2,
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: _buildHeader(),
+              ),
+            ),
+          ),
+          // Đường kẻ phân cách
+          const VerticalDivider(width: 1, color: Colors.white54),
+// Cột bên phải: Form
+          Expanded(
+            flex: 3,
+            child: SingleChildScrollView(
+              child: _buildFormContent(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Widget chứa Tiêu đề và Icon
+  Widget _buildHeader() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          'Chỉnh Sửa Hồ Sơ Phụ Huynh',
+          style: GoogleFonts.balsamiqSans(
+            fontSize: 28,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+            shadows: [
+              Shadow(
+                offset: const Offset(2, 2),
+                blurRadius: 4.0,
+                color: Colors.black.withOpacity(0.3),
+              ),
+            ],
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 20),
+        AnimatedBuilder(
+          animation: _iconAnimationController,
+          builder: (context, child) {
+            return Transform.rotate(
+              angle: _iconAnimation.value,
+              child: const Icon(
+                Icons.person_pin,
+                size: 120,
+                color: Colors.white,
               ),
             );
           },
+        ),
+      ],
+    );
+  }
+
+  /// Widget chứa Form và các trường nhập liệu
+  Widget _buildFormContent() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.95),
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          children: [
+            _buildTextField(
+              controller: _nameCtrl,
+              labelText: 'Họ và tên',
+              icon: Icons.person_outline,
+              validator: (v) => (v == null || v.trim().isEmpty) ? 'Không được để trống' : null,
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              controller: _usernameCtrl,
+              labelText: 'Tên đăng nhập',
+              icon: Icons.account_circle_outlined,
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Vui lòng nhập tên đăng nhập';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              controller: _emailCtrl,
+              labelText: 'Email',
+              icon: Icons.email_outlined,
+              enabled: false,
+              readOnly: true,
+              helperText: 'Muốn đổi email: dùng nút "Đổi email" ở màn Hồ sơ.',
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              controller: _phoneCtrl,
+              labelText: 'Số điện thoại',
+              icon: Icons.phone_outlined,
+              keyboardType: TextInputType.phone,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+              ],
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Vui lòng nhập số điện thoại';
+                }
+                final isDigitsOnly = RegExp(r'^\d+$').hasMatch(value);
+                if (!isDigitsOnly) {
+                  return 'Chỉ được phép nhập số';
+                }
+                if (value.length < 10) {
+                  return 'Số điện thoại phải có ít nhất 10 chữ số';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              controller: _addressCtrl,
+              labelText: 'Địa chỉ',
+              icon: Icons.home_outlined,
+            ),
+            const SizedBox(height: 30),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _saving ? null : _save,
+                icon: _saving
+                    ? const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
+                )
+                    : const Icon(Icons.save, color: Colors.white),
+                label: Text(
+                  _saving ? 'Đang lưu...' : 'Lưu Thay Đổi',
+                  style: GoogleFonts.balsamiqSans(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                    color: Colors.white,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  backgroundColor: const Color(0xFF6A1B9A),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(50),
+                  ),
+                  elevation: 8,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -286,6 +360,7 @@ class _EditParentScreenState extends State<EditParentScreen> with SingleTickerPr
     bool readOnly = false,
     String? helperText,
     TextInputType keyboardType = TextInputType.text,
+    List<TextInputFormatter>? inputFormatters,
   }) {
     return TextFormField(
       controller: controller,
@@ -293,6 +368,7 @@ class _EditParentScreenState extends State<EditParentScreen> with SingleTickerPr
       enabled: enabled,
       readOnly: readOnly,
       keyboardType: keyboardType,
+      inputFormatters: inputFormatters,
       style: GoogleFonts.balsamiqSans(fontSize: 16),
       decoration: InputDecoration(
         labelText: labelText,

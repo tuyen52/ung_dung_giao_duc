@@ -17,6 +17,9 @@ class TreDetailScreen extends StatefulWidget {
 }
 
 class _TreDetailScreenState extends State<TreDetailScreen> {
+  // GlobalKey để quản lý Form, dùng chung cho cả 2 layout
+  final _formKey = GlobalKey<FormState>();
+
   late final _name = TextEditingController(text: widget.tre.hoTen);
   late final _gioiTinh = TextEditingController(text: widget.tre.gioiTinh);
   late final _ngaySinh = TextEditingController(text: widget.tre.ngaySinh);
@@ -25,45 +28,52 @@ class _TreDetailScreenState extends State<TreDetailScreen> {
 
   @override
   void dispose() {
-    _name.dispose(); _gioiTinh.dispose(); _ngaySinh.dispose(); _soThich.dispose();
+    _name.dispose();
+    _gioiTinh.dispose();
+    _ngaySinh.dispose();
+    _soThich.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
-    setState(() => _saving = true);
-    try {
-      final updated = widget.tre.copyWith(
-        hoTen: _name.text.trim(),
-        gioiTinh: _gioiTinh.text.trim(),
-        ngaySinh: _ngaySinh.text.trim(),
-        soThich: _soThich.text.trim(),
-      );
-      await TreService().updateTre(updated);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Đã lưu thay đổi',
-            style: GoogleFonts.balsamiqSans(),
-          ),
-          backgroundColor: Colors.green,
-        ),
-      );
-      Navigator.pop(context, updated);
-    } catch (e) {
-      if (mounted) {
+    // Logic mới: Chỉ lưu khi form hợp lệ
+    if (_formKey.currentState!.validate()) {
+      setState(() => _saving = true);
+      try {
+        final updated = widget.tre.copyWith(
+          hoTen: _name.text.trim(),
+          gioiTinh: _gioiTinh.text.trim(),
+          ngaySinh: _ngaySinh.text.trim(),
+          soThich: _soThich.text.trim(),
+        );
+        await TreService().updateTre(updated);
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Lỗi: $e', style: GoogleFonts.balsamiqSans()),
-            backgroundColor: Colors.red,
+            content: Text(
+              'Đã lưu thay đổi',
+              style: GoogleFonts.balsamiqSans(),
+            ),
+            backgroundColor: Colors.green,
           ),
         );
+        Navigator.pop(context, updated);
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Lỗi: $e', style: GoogleFonts.balsamiqSans()),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } finally {
+        if (mounted) setState(() => _saving = false);
       }
-    } finally {
-      if (mounted) setState(() => _saving = false);
     }
   }
 
+  // Các hàm _delete và _startGame không thay đổi
   Future<void> _delete() async {
     final ok = await showDialog<bool>(
       context: context,
@@ -122,21 +132,22 @@ class _TreDetailScreenState extends State<TreDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final title = widget.tre.hoTen.isEmpty ? 'Chi tiết của bé' : widget.tre.hoTen;
-    final isMale = widget.tre.gioiTinh.toLowerCase() == 'nam';
+    // final title = widget.tre.hoTen.isEmpty ? 'Chi tiết của bé' : widget.tre.hoTen; // Không dùng title nữa
 
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: Text(
-          title,
-          style: GoogleFonts.balsamiqSans(
-            fontSize: 24,
-            fontWeight: FontWeight.w800,
-            color: Colors.white,
-          ),
-        ),
-        centerTitle: true,
+        // --- Đã loại bỏ title và centerTitle ---
+        // title: Text(
+        //   title,
+        //   style: GoogleFonts.balsamiqSans(
+        //     fontSize: 24,
+        //     fontWeight: FontWeight.w800,
+        //     color: Colors.white,
+        //   ),
+        // ),
+        // centerTitle: true,
+        // ----------------------------------------
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
@@ -155,63 +166,68 @@ class _TreDetailScreenState extends State<TreDetailScreen> {
           ),
         ],
       ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Color(0xFF8EC5FC), // Màu xanh dương nhạt
-              Color(0xFFE0C3FC), // Màu tím hồng nhạt
-            ],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
+      // Sử dụng OrientationBuilder để chọn layout phù hợp
+      body: OrientationBuilder(
+        builder: (context, orientation) {
+          if (orientation == Orientation.portrait) {
+            return _buildPortraitLayout();
+          } else {
+            return _buildLandscapeLayout();
+          }
+        },
+      ),
+    );
+  }
+
+  // GIAO DIỆN MÀN HÌNH DỌC
+  Widget _buildPortraitLayout() {
+    final isMale = widget.tre.gioiTinh.toLowerCase() == 'nam';
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [ Color(0xFF8EC5FC), Color(0xFFE0C3FC), ],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
         ),
-        child: SingleChildScrollView(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height),
-            child: IntrinsicHeight(
-              child: Column(
-                children: [
-                  const SizedBox(height: 100),
-                  CircleAvatar(
-                    radius: 60,
-                    backgroundColor: isMale ? Colors.lightBlueAccent : Colors.pinkAccent,
-                    child: Icon(
-                      isMale ? Icons.boy_rounded : Icons.girl_rounded,
-                      size: 80,
-                      color: Colors.white,
-                    ),
+      ),
+      child: SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height),
+          child: IntrinsicHeight(
+            child: Column(
+              children: [
+                const SizedBox(height: 100),
+                CircleAvatar(
+                  radius: 60,
+                  backgroundColor: isMale ? Colors.lightBlueAccent : Colors.pinkAccent,
+                  child: Icon( isMale ? Icons.boy_rounded : Icons.girl_rounded, size: 80, color: Colors.white, ),
+                ),
+                const SizedBox(height: 20),
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  margin: const EdgeInsets.symmetric(horizontal: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.95),
+                    borderRadius: BorderRadius.circular(30),
+                    boxShadow: [ BoxShadow( color: Colors.black.withOpacity(0.1), blurRadius: 20, offset: const Offset(0, 10), ), ],
                   ),
-                  const SizedBox(height: 20),
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    margin: const EdgeInsets.symmetric(horizontal: 20),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.95),
-                      borderRadius: BorderRadius.circular(30),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
+                  // Tích hợp Form vào layout dọc
+                  child: Form(
+                    key: _formKey,
                     child: Column(
                       children: [
-                        _buildTextField('Họ tên', _name, Icons.person_outline),
-                        _buildTextField('Giới tính', _gioiTinh, isMale ? Icons.male : Icons.female),
-                        _buildTextField('Ngày sinh', _ngaySinh, Icons.cake_outlined),
-                        _buildTextField('Sở thích', _soThich, Icons.favorite_outline),
+                        _buildTextFormField('Họ tên', _name, Icons.person_outline, isRequired: true),
+                        _buildTextFormField('Giới tính', _gioiTinh, isMale ? Icons.male : Icons.female),
+                        _buildTextFormField('Ngày sinh', _ngaySinh, Icons.cake_outlined),
+                        _buildTextFormField('Sở thích', _soThich, Icons.favorite_outline),
                         const SizedBox(height: 20),
                         _buildSaveButton(),
-
                       ],
                     ),
                   ),
-                  const Spacer(),
-                ],
-              ),
+                ),
+                const Spacer(),
+              ],
             ),
           ),
         ),
@@ -219,10 +235,87 @@ class _TreDetailScreenState extends State<TreDetailScreen> {
     );
   }
 
-  Widget _buildTextField(String label, TextEditingController c, IconData icon) {
+  // GIAO DIỆN MÀN HÌNH NGANG
+  Widget _buildLandscapeLayout() {
+    final isMale = widget.tre.gioiTinh.toLowerCase() == 'nam';
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [ Color(0xFF8EC5FC), Color(0xFFE0C3FC), ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const SizedBox(height: 40),
+                  CircleAvatar(
+                    radius: 60,
+                    backgroundColor: isMale ? Colors.lightBlueAccent : Colors.pinkAccent,
+                    child: Icon( isMale ? Icons.boy_rounded : Icons.girl_rounded, size: 80, color: Colors.white, ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    widget.tre.hoTen.isEmpty ? 'Hồ sơ của bé' : widget.tre.hoTen,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.balsamiqSans(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      shadows: [ const Shadow(blurRadius: 5.0, color: Colors.black45, offset: Offset(2.0, 2.0)), ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Container(
+              margin: const EdgeInsets.only(top: 20, bottom: 20, right: 20),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.95),
+                borderRadius: BorderRadius.circular(30),
+                boxShadow: [ BoxShadow( color: Colors.black.withOpacity(0.1), blurRadius: 20, offset: const Offset(0, 10), ), ],
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24.0),
+                // Tích hợp Form vào layout ngang
+                child: Form(
+                  // Lưu ý: key vẫn là _formKey, dùng chung cho cả 2 layout
+                  key: _formKey,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _buildTextFormField('Họ tên', _name, Icons.person_outline, isRequired: true),
+                      _buildTextFormField('Giới tính', _gioiTinh, isMale ? Icons.male : Icons.female),
+                      _buildTextFormField('Ngày sinh', _ngaySinh, Icons.cake_outlined),
+                      _buildTextFormField('Sở thích', _soThich, Icons.favorite_outline),
+                      const SizedBox(height: 20),
+                      _buildSaveButton(),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Chuyển từ TextField sang TextFormField để có validator
+  Widget _buildTextFormField(String label, TextEditingController c, IconData icon, {bool isRequired = false}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
-      child: TextField(
+      child: TextFormField(
         controller: c,
         style: GoogleFonts.balsamiqSans(fontSize: 16),
         decoration: InputDecoration(
@@ -240,10 +333,20 @@ class _TreDetailScreenState extends State<TreDetailScreen> {
             borderSide: const BorderSide(color: Color(0xFF8EC5FC), width: 2),
           ),
         ),
+        // Thêm validator cho trường bắt buộc
+        validator: isRequired
+            ? (value) {
+          if (value == null || value.trim().isEmpty) {
+            return 'Họ tên không được để trống';
+          }
+          return null;
+        }
+            : null,
       ),
     );
   }
 
+  // Widget nút lưu không đổi
   Widget _buildSaveButton() {
     return SizedBox(
       width: double.infinity,
@@ -270,6 +373,4 @@ class _TreDetailScreenState extends State<TreDetailScreen> {
       ),
     );
   }
-
-
 }

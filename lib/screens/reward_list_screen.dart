@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_fonts/google_fonts.dart'; // Đảm bảo đã cài đặt trong pubspec.yaml
+import 'package:google_fonts/google_fonts.dart';
 
 import '../models/tre.dart';
 import '../services/tre_service.dart';
@@ -100,14 +100,19 @@ class RewardListScreen extends StatelessWidget {
                       );
                     }
 
-                    return ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                      itemCount: list.length,
-                      itemBuilder: (_, i) {
-                        final tre = list[i];
-                        return _buildTreRewardItem(tre);
+                    // *** BẮT ĐẦU THAY ĐỔI: SỬ DỤNG ORIENTATION BUILDER ***
+                    // OrientationBuilder sẽ tự động nhận diện hướng màn hình và build lại UI
+                    return OrientationBuilder(
+                      builder: (context, orientation) {
+                        // Nếu là màn hình ngang, sử dụng GridView
+                        if (orientation == Orientation.landscape) {
+                          return _buildLandscapeLayout(list);
+                        }
+                        // Mặc định (màn hình đứng), sử dụng ListView
+                        return _buildPortraitLayout(list);
                       },
                     );
+                    // *** KẾT THÚC THAY ĐỔI ***
                   },
                 ),
               ),
@@ -116,6 +121,39 @@ class RewardListScreen extends StatelessWidget {
       ),
     );
   }
+
+  // Giao diện cho màn hình đứng (Portrait) - Giữ nguyên như cũ
+  Widget _buildPortraitLayout(List<Tre> list) {
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      itemCount: list.length,
+      itemBuilder: (_, i) {
+        final tre = list[i];
+        return _buildTreRewardItem(tre);
+      },
+    );
+  }
+
+  // *** BẮT ĐẦU PHẦN MỚI: GIAO DIỆN CHO MÀN HÌNH NGANG (LANDSCAPE) ***
+  Widget _buildLandscapeLayout(List<Tre> list) {
+    return GridView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+      // Cấu hình GridView
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2, // Hiển thị 2 cột
+        crossAxisSpacing: 16, // Khoảng cách ngang giữa các item
+        mainAxisSpacing: 16, // Khoảng cách dọc giữa các item
+        childAspectRatio: 2.5, // Tỉ lệ chiều rộng/chiều cao của item
+      ),
+      itemCount: list.length,
+      itemBuilder: (context, i) {
+        final tre = list[i];
+        // Sử dụng lại widget item đã có
+        return _buildTreRewardItem(tre);
+      },
+    );
+  }
+  // *** KẾT THÚC PHẦN MỚI ***
 
   Widget _buildTreRewardItem(Tre tre) {
     return StreamBuilder(
@@ -151,6 +189,7 @@ class RewardListScreen extends StatelessWidget {
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center, // Căn giữa nội dung trong cột
                       children: [
                         Text(
                           tre.hoTen.isEmpty ? 'Bé' : tre.hoTen,
@@ -159,6 +198,7 @@ class RewardListScreen extends StatelessWidget {
                             fontSize: 18,
                             color: const Color(0xFF6A1B9A),
                           ),
+                          overflow: TextOverflow.ellipsis, // Tránh tràn chữ
                         ),
                         const SizedBox(height: 4),
                         Text(
@@ -170,6 +210,7 @@ class RewardListScreen extends StatelessWidget {
                       ],
                     ),
                   ),
+                  // Phần huy hiệu có thể giữ nguyên hoặc tùy chỉnh lại nếu cần
                   Row(
                     children: [
                       _badge(Icons.emoji_events, Colors.orange, reward?.gold ?? 0),
@@ -197,6 +238,7 @@ class RewardListScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min, // Giúp cột co lại vừa đủ nội dung
         children: [
           Icon(icon, color: color, size: 24),
           Text(

@@ -113,16 +113,17 @@ class ListTreScreen extends StatelessWidget {
                 return _buildEmptyState(context);
               }
 
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 80.0),
-                child: ListView.separated(
-                  itemCount: items.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 16),
-                  itemBuilder: (context, i) {
-                    final tre = items[i];
-                    return _buildTreCard(context, tre);
-                  },
-                ),
+              // <<< THAY ĐỔI: SỬ DỤNG OrientationBuilder ĐỂ CHỌN LAYOUT >>>
+              return OrientationBuilder(
+                builder: (context, orientation) {
+                  if (orientation == Orientation.portrait) {
+                    // Nếu là màn hình dọc, dùng layout cũ (ListView)
+                    return _buildPortraitLayout(context, items);
+                  } else {
+                    // Nếu là màn hình ngang, dùng layout mới (GridView)
+                    return _buildLandscapeLayout(context, items);
+                  }
+                },
               );
             },
           ),
@@ -142,7 +143,43 @@ class ListTreScreen extends StatelessWidget {
     );
   }
 
-  // Widget tạo hiệu ứng chuyển động
+  // <<< THAY ĐỔI: TÁCH LAYOUT DỌC RA THÀNH HÀM RIÊNG >>>
+  Widget _buildPortraitLayout(BuildContext context, List<Tre> items) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 80.0),
+      child: ListView.separated(
+        itemCount: items.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 16),
+        itemBuilder: (context, i) {
+          final tre = items[i];
+          return _buildTreCard(context, tre);
+        },
+      ),
+    );
+  }
+
+  // <<< THAY ĐỔI: TẠO HÀM MỚI CHO LAYOUT NGANG >>>
+  Widget _buildLandscapeLayout(BuildContext context, List<Tre> items) {
+    return Padding(
+      // Tăng padding trên để không bị che bởi AppBar
+      padding: const EdgeInsets.only(top: 100.0, left: 24.0, right: 24.0, bottom: 24.0),
+      child: GridView.builder(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2, // Hiển thị 2 cột
+          crossAxisSpacing: 16, // Khoảng cách ngang giữa các item
+          mainAxisSpacing: 16, // Khoảng cách dọc giữa các item
+          childAspectRatio: 2.5, // Tỷ lệ chiều rộng/chiều cao của item, điều chỉnh để vừa vặn
+        ),
+        itemCount: items.length,
+        itemBuilder: (context, i) {
+          final tre = items[i];
+          // Tái sử dụng card đã tạo
+          return _buildTreCard(context, tre);
+        },
+      ),
+    );
+  }
+
   Widget _buildAnimatedDecoration(IconData icon, double size, Color color, int duration) {
     return TweenAnimationBuilder<double>(
       tween: Tween<double>(begin: 0.0, end: 1.0),
@@ -150,7 +187,7 @@ class ListTreScreen extends StatelessWidget {
       curve: Curves.easeInOutSine,
       builder: (context, value, child) {
         return Transform.translate(
-          offset: Offset(0, 10 * value), // Hiệu ứng lơ lửng
+          offset: Offset(0, 10 * value),
           child: Opacity(
             opacity: value,
             child: Icon(icon, size: size, color: color),
@@ -164,6 +201,7 @@ class ListTreScreen extends StatelessWidget {
     return Card(
       elevation: 8,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      clipBehavior: Clip.antiAlias, // <<< THÊM DÒNG NÀY
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: CircleAvatar(

@@ -1,0 +1,41 @@
+name: mobileapp
+description: "A new Flutter project."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.4.3 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # FlutterFire (đã kiểm tra tương thích)
+  firebase_core: ^3.4.0
+  firebase_auth: ^5.2.0
+  cloud_firestore: ^5.4.4
+  firebase_database: ^11.3.10
+  flutter_animate: ^4.5.0
+  audioplayers: ^6.0.0
+  google_fonts: ^6.2.1
+  google_nav_bar: ^5.0.6
+
+  # Thư viện định dạng ngày giờ
+  intl: ^0.19.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/sfx/
+    - assets/audio/
+    - assets/images/plant/
+    - assets/images/environment/
+    - assets/images/traffic/

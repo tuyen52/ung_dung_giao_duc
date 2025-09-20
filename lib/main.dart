@@ -91,13 +91,6 @@ class MyApp extends StatelessWidget {
             ),
           );
         }
-
-        // Fallback
-        return MaterialPageRoute(
-          builder: (_) => const Scaffold(
-            body: Center(child: Text('Route không tồn tại')),
-          ),
-        );
       },
     );
   }

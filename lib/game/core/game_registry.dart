@@ -50,7 +50,7 @@ class GameRegistry {
     GameInfo(
       id: 'plant_care',
       name: 'Chăm Sóc Cây Trồng',
-      description: 'Chăm sóc các chậu cây theo đúng nhu cầu của chúng.',
+      description: 'Chăm sóc chậu cây theo đúng nhu cầu của chúng.',
       icon: Icons.local_florist,
       route: '/game/plant_care',
       primaryColor: Colors.blueAccent,

@@ -6,9 +6,14 @@ import 'firebase_options.dart';
 import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
 import 'home_shell.dart';
+
+// Game launchers
 import 'game/recycle_sort/recycle_sort_launcher.dart';
 import 'game/traffic_safety/traffic_safety_launcher.dart';
 import 'game/plant_care/plant_care_launcher.dart';
+import 'game/swimming_safety/swimming_safety_launcher.dart'; // ⭐ NEW
+
+// Core
 import 'game/core/types.dart';
 
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
@@ -21,19 +26,25 @@ Future<void> main() async {
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'MobileApp',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(useMaterial3: true, colorSchemeSeed: const Color(0xFF00796B)),
+      navigatorKey: appNavigatorKey, // ⭐ để AlarmService/điều hướng toàn cục dùng
+      theme: ThemeData(
+        useMaterial3: true,
+        colorSchemeSeed: const Color(0xFF00796B),
+      ),
       initialRoute: '/login',
       routes: {
         '/login': (_) => const LoginScreen(),
         '/signup': (_) => const SignupScreen(),
-        '/shell': (_) => const HomeShell(),
+        '/shell' : (_) => const HomeShell(),
       },
       onGenerateRoute: (settings) {
+        // Recycle Sort
         if (settings.name == '/game/recycle') {
           final args = settings.arguments as Map<String, dynamic>;
           return MaterialPageRoute(
@@ -45,6 +56,7 @@ class MyApp extends StatelessWidget {
           );
         }
 
+        // Traffic Safety
         if (settings.name == '/game/traffic_safety') {
           final args = settings.arguments as Map<String, dynamic>;
           return MaterialPageRoute(
@@ -56,11 +68,10 @@ class MyApp extends StatelessWidget {
           );
         }
 
-        // THAY ĐỔI ROUTE TỪ 'room_cleanup' SANG 'plant_care'
+        // Plant Care
         if (settings.name == '/game/plant_care') {
           final args = settings.arguments as Map<String, dynamic>;
           return MaterialPageRoute(
-            // GỌI ĐÚNG LAUNCHER CỦA GAME MỚI
             builder: (_) => PlantCareGameLauncher(
               treId: args['treId'] as String,
               treName: args['treName'] as String,
@@ -69,7 +80,24 @@ class MyApp extends StatelessWidget {
           );
         }
 
-        return null;
+        // ⭐ Swimming Safety (mới)
+        if (settings.name == '/game/swimming_safety') {
+          final args = settings.arguments as Map<String, dynamic>;
+          return MaterialPageRoute(
+            builder: (_) => SwimmingSafetyGameLauncher(
+              treId: args['treId'] as String,
+              treName: args['treName'] as String,
+              difficulty: args['difficulty'] as GameDifficulty,
+            ),
+          );
+        }
+
+        // Fallback
+        return MaterialPageRoute(
+          builder: (_) => const Scaffold(
+            body: Center(child: Text('Route không tồn tại')),
+          ),
+        );
       },
     );
   }

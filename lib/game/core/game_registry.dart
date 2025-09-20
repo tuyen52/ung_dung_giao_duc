@@ -1,16 +1,14 @@
-// game/core/game_registry.dart
-
 import 'package:flutter/material.dart';
 
-// 1. Định nghĩa một class để chứa thông tin game
+/// 1) Mô tả game
 class GameInfo {
   final String id;
   final String name;
   final String description;
   final IconData icon;
-  final String route; // Route để khởi chạy game
-  final Color primaryColor; // New primary color property
-  final Color secondaryColor; // New secondary color property
+  final String route;              // Route để khởi chạy game
+  final Color primaryColor;        // Màu chủ đạo
+  final Color secondaryColor;      // Màu phụ
 
   const GameInfo({
     required this.id,
@@ -22,11 +20,8 @@ class GameInfo {
     required this.secondaryColor,
   });
 }
-// game/core/game_registry.dart
 
-// ... (other imports)
-
-// 2. Cập nhật danh sách các game
+/// 2) Danh sách game có thêm "An Toàn Bơi Lội"
 class GameRegistry {
   static final List<GameInfo> games = [
     GameInfo(
@@ -56,5 +51,22 @@ class GameRegistry {
       primaryColor: Colors.blueAccent,
       secondaryColor: Colors.lightBlueAccent,
     ),
+    // ⭐ MỤC MỚI: An Toàn Bơi Lội
+    GameInfo(
+      id: 'swimming_safety',
+      name: 'An Toàn Bơi Lội',
+      description: 'Học kỹ năng an toàn khi ở hồ bơi, sông hồ, bãi biển.',
+      icon: Icons.pool_rounded,
+      route: '/game/swimming_safety',
+      primaryColor: Colors.cyan,
+      secondaryColor: Colors.lightBlueAccent,
+    ),
   ];
+
+  /// (Tuỳ chọn) tiện tra cứu nhanh
+  static GameInfo? byId(String id) =>
+      games.firstWhere((g) => g.id == id, orElse: () => games.first);
+
+  static GameInfo? byRoute(String route) =>
+      games.firstWhere((g) => g.route == route, orElse: () => games.first);
 }

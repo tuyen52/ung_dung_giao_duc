@@ -1,32 +1,66 @@
-// lib/game/plant_care/plant_care_game_launcher.dart
+import 'dart:convert';
 import 'package:flutter/material.dart';
 
-// Game runtime
-import 'package:mobileapp/game/core/game.dart';
-import 'package:mobileapp/game/plant_care/plant_care_game.dart';
-import 'package:mobileapp/game/plant_care/plant_care_play_screen.dart';
-import 'package:mobileapp/game/core/types.dart';
+// Độ khó hệ thống
+import 'package:mobileapp/game/core/types.dart' show GameDifficulty;
+
+// Lõi & màn chơi
+import 'core/plant_core.dart';
+import 'plant_care_play_screen.dart';
+
+// Dịch vụ hệ thống
+import 'package:mobileapp/services/game_progress_service.dart';
+import 'package:mobileapp/services/game_session_service.dart';
+import 'package:mobileapp/game/core/game_progress.dart';
+
+// Wrapper của bạn
 import 'package:mobileapp/game/widgets/game_screen_wrapper.dart';
-import 'package:mobileapp/game/plant_care/data/plant_care_data.dart';
 
-// Models & Services
-import '../core/game_progress.dart';
-import '../../services/game_progress_service.dart';
-import '../../services/game_session_service.dart';
+// Kết quả tổng hệ thống
+import 'package:mobileapp/screens/game_result_screen.dart';
 
-// UI sau khi hoàn thành ván
-import '../../screens/game_result_screen.dart';
+const String _kPlantCareGameId = 'plant_care';
+
+DifficultyLevel _mapGameDifficulty(GameDifficulty d) {
+  switch (d) {
+    case GameDifficulty.easy:
+      return DifficultyLevel.easy;
+    case GameDifficulty.medium:
+      return DifficultyLevel.normal;
+    case GameDifficulty.hard:
+      return DifficultyLevel.hard;
+  }
+}
+
+int _difficultyToInt(DifficultyLevel d) {
+  if (d == DifficultyLevel.easy) return 1;
+  if (d == DifficultyLevel.hard) return 3;
+  return 2; // normal
+}
+
+String _encodeState(Map<String, dynamic> m) => json.encode(m);
+Map<String, dynamic>? _decodeState(String s) {
+  try {
+    return json.decode(s) as Map<String, dynamic>;
+  } catch (_) {
+    return null;
+  }
+}
 
 class PlantCareGameLauncher extends StatefulWidget {
   final String treId;
   final String treName;
   final GameDifficulty difficulty;
+  final int totalDays;
+  final int dayLengthSec;
 
   const PlantCareGameLauncher({
     super.key,
     required this.treId,
     required this.treName,
     required this.difficulty,
+    this.totalDays = 5,
+    this.dayLengthSec = 90,
   });
 
   @override
@@ -34,33 +68,75 @@ class PlantCareGameLauncher extends StatefulWidget {
 }
 
 class _PlantCareGameLauncherState extends State<PlantCareGameLauncher> {
-  static const String _gameId = 'plant_care';
-  static const String _gameName = 'Chăm Sóc Cây Trồng';
+  final _progress = GameProgressService();
+  final GlobalKey _playKey = GlobalKey();
 
-  final GlobalKey<PlantCarePlayScreenState> _playScreenKey = GlobalKey();
+  bool _loading = true;
+  GameProgress? _gp;
+  Map<String, dynamic>? _initialStateMap;
 
-  int _mapDifficulty(GameDifficulty d) => switch (d) {
-    GameDifficulty.easy => 1,
-    GameDifficulty.medium => 2,
-    GameDifficulty.hard => 3,
-  };
+  @override
+  void initState() {
+    super.initState();
+    _loadProgress();
+  }
 
-  Future<void> _finishAndSave(int correct, int wrong) async {
-    // Chấm điểm: chỉ cộng khi “thiếu -> vào tối ưu”, sai khi “đã đủ vẫn làm / vượt tolerance”
-    final raw = correct * 3 - wrong * 1; // phạt nhẹ để khuyến khích thử
-    final score = raw < 0 ? 0 : raw;
+  Future<void> _loadProgress() async {
+    _gp = await _progress.load(widget.treId, _kPlantCareGameId);
+    if (_gp != null && _gp!.deck.isNotEmpty) {
+      _initialStateMap = _decodeState(_gp!.deck.first);
+    }
+    setState(() => _loading = false);
+  }
 
+  Future<void> _saveSnapshot({
+    required Map<String, dynamic> state,
+    required int dayIndex,
+    required int timeLeftSec,
+    int stars = 0,
+  }) async {
+    final diffInt =
+        _gp?.difficulty ?? _difficultyToInt(_mapGameDifficulty(widget.difficulty));
+    final gp = GameProgress(
+      treId: widget.treId,
+      gameId: _kPlantCareGameId,
+      difficulty: diffInt,
+      deck: <String>[_encodeState(state)], // lưu state JSON
+      index: dayIndex,
+      correct: stars, // tổng sao tham khảo
+      wrong: 0,
+      timeLeft: timeLeftSec,
+      updatedAt: DateTime.now().toIso8601String(),
+    );
+    await _progress.save(gp);
+  }
+
+  Future<void> _clearProgress() async {
+    await _progress.clear(widget.treId, _kPlantCareGameId);
+  }
+
+  int _computeScore(int correct, int wrong) {
+    // Nếu game khác dùng công thức khác, copy đúng công thức đó vào đây.
+    final score = correct * 20 - wrong * 10;
+    return score < 0 ? 0 : score;
+  }
+
+  Future<void> _finishAndShowResult(int correct, int wrong) async {
+    // Lưu phiên & thưởng giống hệ thống chung
     await GameSessionService().saveAndReward(
       treId: widget.treId,
-      gameId: _gameId,
-      gameName: _gameName,
-      difficulty: _mapDifficulty(widget.difficulty).toString(),
+      gameId: _kPlantCareGameId,
+      gameName: 'Chăm Sóc Cây Trồng', // ✅ THÊM THAM SỐ BẮT BUỘC
+      difficulty: (_gp?.difficulty ??
+          _difficultyToInt(_mapGameDifficulty(widget.difficulty)))
+          .toString(),
       correct: correct,
       wrong: wrong,
     );
 
-    if (!mounted) return;
+    final score = _computeScore(correct, wrong);
 
+    if (!mounted) return;
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
@@ -75,79 +151,82 @@ class _PlantCareGameLauncherState extends State<PlantCareGameLauncher> {
     );
   }
 
-  void _restartGame() {
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (context) => PlantCareGameLauncher(
-          treId: widget.treId,
-          treName: widget.treName,
-          difficulty: widget.difficulty,
-        ),
-      ),
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Scaffold(
+        body: SafeArea(child: Center(child: CircularProgressIndicator())),
+      );
+    }
+
+    return GameScreenWrapper(
+      gameName: 'Chăm sóc cây',
+      handbookContent: const _PlantHelpSheet(),
+      showHandbookOnStart: false,
+
+      // Gọi public method của PlayScreen qua key (đúng khung của bạn)
+      onFinishAndExit: () => (_playKey.currentState as dynamic?)?.finishGame(),
+      onSaveAndExit: () => (_playKey.currentState as dynamic?)?.outToHome(),
+
+      builder: (context, bool isPaused) {
+        return PlantCarePlayScreen(
+          key: _playKey,
+          isPaused: isPaused,
+          difficulty: _mapGameDifficulty(widget.difficulty),
+          totalDays: widget.totalDays,
+          dayLengthSec: widget.dayLengthSec,
+          initialStateMap: _initialStateMap,
+
+          // Khi người chơi KẾT THÚC (hoặc game kết thúc tự nhiên)
+          onFinish: (int correct, int wrong) =>
+              WidgetsBinding.instance.addPostFrameCallback(
+                      (_) => _finishAndShowResult(correct, wrong)),
+
+          // Lưu tiến độ (hết ngày hoặc Save & Exit)
+          onSaveProgress: ({
+            required Map<String, dynamic> state,
+            required int dayIndex,
+            required int stars,
+            required int timeLeftSec,
+          }) =>
+              _saveSnapshot(
+                state: state,
+                dayIndex: dayIndex,
+                stars: stars,
+                timeLeftSec: timeLeftSec,
+              ),
+
+          // Xoá tiến độ khi hoàn tất ván
+          onClearProgress: _clearProgress,
+        );
+      },
     );
   }
+}
+
+class _PlantHelpSheet extends StatelessWidget {
+  const _PlantHelpSheet();
 
   @override
   Widget build(BuildContext context) {
-    final Game game = PlantCareGame(difficulty: _mapDifficulty(widget.difficulty));
-
-    return GameScreenWrapper(
-      gameName: _gameName,
-      onFinishAndExit: () {
-        final state = _playScreenKey.currentState;
-        if (state != null) {
-          _finishAndSave(state.correctActions, state.wrongActions);
-        } else {
-          Navigator.of(context).pop();
-        }
-      },
-      onRestart: _restartGame,
-      handbookContent: SingleChildScrollView(
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: const [
-            Text(
-              'Mục tiêu chính:',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18.0),
-            ),
+            Text('Hướng dẫn chơi',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
             SizedBox(height: 8),
             Text(
-              '• Giữ các thanh trạng thái (Nước, Ánh sáng, Dinh dưỡng) trong VÙNG TỐI ƯU để cây khỏe mạnh và phát triển qua các giai đoạn.',
-              style: TextStyle(color: Colors.white70, fontSize: 16.0),
-            ),
-            SizedBox(height: 16),
-            Text(
-              'Lưu ý theo loài:',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18.0),
+              '• Giữ 4 chỉ số Nước – Ánh sáng – Dinh dưỡng – Sạch/Bảo vệ trong vùng vàng.\n'
+                  '• Mỗi ngày ~1–2 phút. Mở menu/hướng dẫn thì thời gian đứng lại.\n'
+                  '• Cây lớn dần: Hạt → Cây con → Trưởng thành → Ra hoa.',
             ),
             SizedBox(height: 8),
-            Text('• 🌵 Xương rồng: Nước 30–60, Sáng 70–90 (nhiều nước dễ úng).',
-                style: TextStyle(color: Colors.white70, fontSize: 16.0)),
-            SizedBox(height: 4),
-            Text('• 🌿 Dương xỉ: Nước 70–90, Sáng 40–70 (nắng gắt dễ cháy lá).',
-                style: TextStyle(color: Colors.white70, fontSize: 16.0)),
-            SizedBox(height: 16),
-            Text(
-              'Cách tính điểm:',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18.0),
-            ),
-            SizedBox(height: 8),
-            Text(
-              '• Chỉ cộng điểm khi bạn đưa chỉ số từ mức THIẾU vào VÙNG TỐI ƯU. '
-                  'Nếu đã đủ mà vẫn tiếp tục, hoặc làm vượt ngưỡng chịu đựng → bị tính sai.',
-              style: TextStyle(color: Colors.white70, fontSize: 16.0),
-            ),
           ],
         ),
       ),
-      builder: (context, isPaused) {
-        return PlantCarePlayScreen(
-          key: _playScreenKey,
-          game: game,
-          onFinish: (c, w) => WidgetsBinding.instance.addPostFrameCallback((_) => _finishAndSave(c, w)),
-        );
-      },
     );
   }
 }

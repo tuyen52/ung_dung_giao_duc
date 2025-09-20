@@ -95,7 +95,6 @@ class TrafficSafetyPlayScreenState extends State<TrafficSafetyPlayScreen>
   static const Color accentGreen = Color(0xFF10B981);
   static const Color warningOrange = Color(0xFFF59E0B);
   static const Color dangerRed = Color(0xFFEF4444);
-  static const Color backgroundDark = Color(0xFF0F172A);
   static const Color surfaceColor = Color(0xFF1E293B);
 
   @override
@@ -219,7 +218,6 @@ class TrafficSafetyPlayScreenState extends State<TrafficSafetyPlayScreen>
     final question = _deck[_index];
     final isRight = question.correctAnswerIndices.contains(selectedIndex);
 
-    // Haptic feedback
     HapticFeedback.lightImpact();
 
     setState(() {
@@ -348,35 +346,29 @@ class TrafficSafetyPlayScreenState extends State<TrafficSafetyPlayScreen>
     return Scaffold(
       body: Stack(
         children: [
-          // Beautiful gradient background
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFF1A237E),
-                  Color(0xFF3949AB),
-                  Color(0xFF5E35B1),
-                ],
-              ),
-            ),
-          ),
-          // Pattern overlay
+          // ===== NỀN ẢNH THAY CHO GRADIENT =====
           Positioned.fill(
-            child: CustomPaint(
-              painter: PatternPainter(),
+            child: Image.asset(
+              'assets/images/traffic/traffic_background.png',
+              fit: BoxFit.cover,
             ),
           ),
-          // Glassmorphism overlay
+          // Lớp tối nhẹ để tăng độ tương phản chữ
+          Positioned.fill(
+            child: Container(color: Colors.black.withOpacity(0.08)),
+          ),
+          // Pattern nhẹ (giữ hoặc bỏ tùy thích)
+          Positioned.fill(
+            child: CustomPaint(painter: PatternPainter()),
+          ),
+          // Hiệu ứng kính mờ mịn toàn màn
           Positioned.fill(
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 2, sigmaY: 2),
-              child: Container(
-                color: Colors.black.withOpacity(0.1),
-              ),
+              child: Container(color: Colors.black.withOpacity(0.08)),
             ),
           ),
+
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(16.0),
@@ -414,14 +406,19 @@ class TrafficSafetyPlayScreenState extends State<TrafficSafetyPlayScreen>
                                   color: (_flashCorrect ? accentGreen : dangerRed)
                                       .withOpacity(0.2),
                                   border: Border.all(
-                                    color: _flashCorrect ? accentGreen : dangerRed,
+                                    color:
+                                    _flashCorrect ? accentGreen : dangerRed,
                                     width: 3,
                                   ),
                                 ),
                                 child: Icon(
-                                  _flashCorrect ? Icons.check_rounded : Icons.close_rounded,
+                                  _flashCorrect
+                                      ? Icons.check_rounded
+                                      : Icons.close_rounded,
                                   size: 60,
-                                  color: _flashCorrect ? accentGreen : dangerRed,
+                                  color: _flashCorrect
+                                      ? accentGreen
+                                      : dangerRed,
                                 ),
                               ),
                             );
@@ -513,7 +510,9 @@ class TrafficSafetyPlayScreenState extends State<TrafficSafetyPlayScreen>
         _buildModernChip(
           icon: Icons.timer_rounded,
           label: widget.isPaused ? 'TẠM DỪNG' : '$_timeLeft giây',
-          color: widget.isPaused ? warningOrange : (_timeLeft <= 10 ? dangerRed : primaryBlue),
+          color: widget.isPaused
+              ? warningOrange
+              : (_timeLeft <= 10 ? dangerRed : primaryBlue),
           isAnimated: !widget.isPaused && _timeLeft <= 10,
         ),
         _buildModernChip(
@@ -1064,7 +1063,7 @@ class TrafficSafetyPlayScreenState extends State<TrafficSafetyPlayScreen>
           Expanded(child: SingleChildScrollView(child: sourceArea)),
         ],
       );
-    } else { // Landscape
+    } else {
       return Row(
         children: [
           Expanded(
@@ -1165,59 +1164,59 @@ class TrafficSafetyPlayScreenState extends State<TrafficSafetyPlayScreen>
           }
 
           return TweenAnimationBuilder<double>(
-              duration: Duration(milliseconds: 300 + (i * 100)),
-              tween: Tween(begin: 0, end: 1),
-              builder: (context, value, child) {
-                return Transform.scale(
-                    scale: value,
-                    child: Opacity(
-                      opacity: value,
-                      child: GestureDetector(
-                        onTap:
-                        _selectedOption != null ? null : () => _handleImageSelection(i),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: borderColor, width: borderWidth),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.25),
-                                blurRadius: 12,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
+            duration: Duration(milliseconds: 300 + (i * 100)),
+            tween: Tween(begin: 0, end: 1),
+            builder: (context, value, child) {
+              return Transform.scale(
+                scale: value,
+                child: Opacity(
+                  opacity: value,
+                  child: GestureDetector(
+                    onTap: _selectedOption != null ? null : () => _handleImageSelection(i),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: borderColor, width: borderWidth),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.25),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
                           ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(15),
-                            child: GridTile(
-                              footer: icon != null
-                                  ? Container(
-                                height: 40,
-                                color: Colors.black54,
-                                child: Icon(icon,
-                                    color:
-                                    isCorrect ? accentGreen : dangerRed,
-                                    size: 28),
-                              )
-                                  : null,
-                              child: Stack(
-                                fit: StackFit.expand,
-                                children: [
-                                  Image.asset(
-                                    question.options[i],
-                                    fit: BoxFit.cover,
-                                  ),
-                                  if (overlayColor != null)
-                                    Container(color: overlayColor),
-                                ],
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(15),
+                        child: GridTile(
+                          footer: icon != null
+                              ? Container(
+                            height: 40,
+                            color: Colors.black54,
+                            child: Icon(icon,
+                                color: isCorrect ? accentGreen : dangerRed,
+                                size: 28),
+                          )
+                              : null,
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              Image.asset(
+                                question.options[i],
+                                fit: BoxFit.cover,
                               ),
-                            ),
+                              if (overlayColor != null)
+                                Container(color: overlayColor),
+                            ],
                           ),
                         ),
                       ),
-                    ));
-              });
+                    ),
+                  ),
+                ),
+              );
+            },
+          );
         },
       ),
     );

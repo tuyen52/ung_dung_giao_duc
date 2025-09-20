@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../plant_assets.dart'; // dùng cùng background với các mini-game khác
 
 class PestCatchMiniGameResult {
   final double score0to1;
@@ -23,32 +25,57 @@ class PestCatchMinigamePage extends StatefulWidget {
 }
 
 class _Bug {
+  Offset p;                // vị trí
+  Offset v;                // vận tốc px/s
+  bool caught = false;     // đã bắt chưa
+  _Bug(this.p, this.v);
+}
+
+class _Ripple {
   Offset p;
-  Offset v;
-  final bool isLadyBug; // ✅ loại bọ cố định khi spawn
-  bool caught = false;
-  _Bug(this.p, this.v, {required this.isLadyBug});
+  double age; // giây
+  _Ripple(this.p, this.age);
+}
+
+class _Flash {
+  Offset p;
+  double age; // giây
+  _Flash(this.p, this.age);
 }
 
 class _PestCatchMinigamePageState extends State<PestCatchMinigamePage> {
   final math.Random _rng = math.Random();
   late Timer _timer;
-  late DateTime _lastTick;          // ✅ thời điểm frame trước
-  final DateTime _firstTickStart = DateTime.now();
+  late DateTime _lastTick;
+  late DateTime _startAll;
 
   int _left = 0;
   final List<_Bug> _bugs = [];
   Size _playSize = Size.zero;
   int _caught = 0;
 
-  static const double _radius = 24;
+  // hiệu ứng
+  final List<_Ripple> _ripples = [];
+  final List<_Flash> _flashes = [];
+
+  static const double _radius = 26; // tăng nhẹ cho thân thiện hơn
+  static const double _rippleLife = 0.35;
+  static const double _flashLife = 0.35;
 
   @override
   void initState() {
     super.initState();
+    _startAll = DateTime.now();
     _lastTick = DateTime.now();
     _left = widget.durationSec;
     _timer = Timer.periodic(const Duration(milliseconds: 16), _tick);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // precache background để mượt
+    precacheImage(const AssetImage(PlantAssets.bg), context);
   }
 
   @override
@@ -64,14 +91,11 @@ class _PestCatchMinigamePageState extends State<PestCatchMinigamePage> {
         _rng.nextDouble() * (size.width - 2 * _radius) + _radius,
         _rng.nextDouble() * (size.height - 2 * _radius) + _radius,
       );
-      // tốc độ ngẫu nhiên
+      // tốc độ ngẫu nhiên, mượt vừa phải
       final speed = 60 + _rng.nextDouble() * 90;
       final angle = _rng.nextDouble() * math.pi * 2;
       final v = Offset(math.cos(angle), math.sin(angle)) * speed;
-
-      // ✅ ấn định loại bọ ngay khi spawn (không random trong build nữa)
-      final isLady = _rng.nextBool();
-      _bugs.add(_Bug(p, v, isLadyBug: isLady));
+      _bugs.add(_Bug(p, v));
     }
   }
 
@@ -85,11 +109,16 @@ class _PestCatchMinigamePageState extends State<PestCatchMinigamePage> {
       _spawnBugs(_playSize);
     }
 
-    // Cập nhật vật lý
+    // Cập nhật vật lý bọ
     for (final b in _bugs) {
       if (b.caught) continue;
+
+      // thêm chút “lắc lư” để tự nhiên
+      final jitter = Offset((_rng.nextDouble() - 0.5) * 20, (_rng.nextDouble() - 0.5) * 20);
+      b.v += jitter * dtSec;
+
       Offset np = b.p + b.v * dtSec;
-      // Va vào biên thì nẩy
+      // Va vào biên thì nảy
       if (np.dx < _radius || np.dx > _playSize.width - _radius) {
         b.v = Offset(-b.v.dx, b.v.dy);
         np = Offset(np.dx.clamp(_radius, _playSize.width - _radius), np.dy);
@@ -98,157 +127,301 @@ class _PestCatchMinigamePageState extends State<PestCatchMinigamePage> {
         b.v = Offset(b.v.dx, -b.v.dy);
         np = Offset(np.dx, np.dy.clamp(_radius, _playSize.height - _radius));
       }
+      // giới hạn tốc độ tối đa để không “bay” quá nhanh
+      final maxSpd = 140.0;
+      final spd = b.v.distance;
+      if (spd > maxSpd) b.v = b.v * (maxSpd / spd);
       b.p = np;
     }
 
+    // hiệu ứng ripple / flash
+    for (final r in _ripples) {
+      r.age += dtSec;
+    }
+    _ripples.removeWhere((r) => r.age >= _rippleLife);
+
+    for (final f in _flashes) {
+      f.age += dtSec;
+    }
+    _flashes.removeWhere((f) => f.age >= _flashLife);
+
     // Cập nhật thời gian còn lại
-    setState(() {
-      _left = (_leftFromStart()).clamp(0, widget.durationSec);
-    });
+    _left = (_remaining()).clamp(0, widget.durationSec);
     if (_left <= 0 || _caught >= widget.bugs) {
       _finish();
+      return;
     }
+    if (mounted) setState(() {});
   }
 
-  int _leftFromStart() {
-    final elapsed = DateTime.now().difference(_firstTickStart).inSeconds;
+  int _remaining() {
+    final elapsed = DateTime.now().difference(_startAll).inSeconds;
     return (widget.durationSec - elapsed);
-    // Nếu muốn không đếm giờ như minigame ánh sáng bản mới:
-    // return widget.durationSec; // và bỏ hết logic kết thúc theo thời gian
   }
 
   void _finish() {
     if (_timer.isActive) _timer.cancel();
-    final elapsedMs = DateTime.now().difference(_firstTickStart).inMilliseconds;
+    final elapsedMs = DateTime.now().difference(_startAll).inMilliseconds;
     final score = (_caught / widget.bugs).clamp(0.0, 1.0);
     Navigator.pop(context, PestCatchMiniGameResult(score0to1: score, elapsedMs: elapsedMs));
   }
 
   void _tapDown(TapDownDetails d) {
     final pos = d.localPosition;
+    bool hit = false;
+
     for (final b in _bugs) {
       if (b.caught) continue;
       if ((b.p - pos).distance <= _radius + 6) {
-        setState(() {
-          b.caught = true;
-          _caught++;
-        });
+        // bắt được
+        b.caught = true;
+        _caught++;
+        _flashes.add(_Flash(b.p, 0));
+        HapticFeedback.lightImpact();
+        hit = true;
         break;
       }
     }
+
+    _ripples.add(_Ripple(pos, 0));
+    if (!hit) {
+      HapticFeedback.selectionClick();
+    }
+    setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
+    final progress = widget.bugs == 0 ? 0.0 : _caught / widget.bugs;
+
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFFF1F8E9), Color(0xFFE8F5E9)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Header
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                child: Row(
-                  children: [
-                    IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
-                    const Spacer(),
-                    _TimerPill(secondsLeft: _left),
-                  ],
-                ),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // 👉 nền đồng bộ với các mini-game khác
+          Image.asset(PlantAssets.bg, fit: BoxFit.cover),
+          // overlay nhẹ để chữ/điều khiển nổi hơn
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.white.withOpacity(0.00), Colors.white.withOpacity(0.10)],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
               ),
-              const SizedBox(height: 6),
-              Text('Bắt những chú sâu nghịch ngợm!',
-                  style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-              const SizedBox(height: 10),
+            ),
+          ),
 
-              // Sân chơi
-              Expanded(
-                child: LayoutBuilder(
-                  builder: (_, c) {
-                    final newSize = Size(c.maxWidth, c.maxHeight);
-                    // Spawn đúng 1 lần sau khi có size
-                    if (_playSize == Size.zero) {
-                      _playSize = newSize;
-                      // Nếu muốn spawn ngay không chờ tick:
-                      if (_bugs.isEmpty) _spawnBugs(_playSize);
-                    } else {
-                      _playSize = newSize;
-                    }
-
-                    return GestureDetector(
-                      onTapDown: _tapDown,
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          // Bãi cỏ
-                          const RepaintBoundary(child: CustomPaint(painter: _GrassPainter())),
-
-                          // Bọ
-                          ..._bugs.map((b) => Positioned(
-                            left: b.p.dx - _radius,
-                            top: b.p.dy - _radius,
-                            width: _radius * 2,
-                            height: _radius * 2,
-                            child: AnimatedScale(
-                              duration: const Duration(milliseconds: 120),
-                              scale: b.caught ? 0.0 : 1.0,
-                              child: Opacity(
-                                opacity: b.caught ? 0.2 : 1.0,
-                                // ✅ không random trong build; cố định theo bug
-                                child: const RepaintBoundary(
-                                  child: _BugSpriteWrapper(),
-                                ),
-                              ),
-                            ),
-                          )),
-
-                          // Điểm
-                          Positioned(
-                            right: 10, top: 10,
-                            child: _ScoreBadge(caught: _caught, total: widget.bugs),
-                          ),
-                        ],
+          SafeArea(
+            child: Column(
+              children: [
+                // Header
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(context),
                       ),
-                    );
-                  },
+                      const Spacer(),
+                      _TimerPill(secondsLeft: _left),
+                    ],
+                  ),
                 ),
-              ),
+                Text(
+                  'Bắt những chú sâu nghịch ngợm!',
+                  style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Chạm để bắt — cố gắng bắt hết trước khi hết giờ.',
+                  style: theme.textTheme.bodyMedium?.copyWith(color: Colors.black54),
+                ),
+                const SizedBox(height: 10),
 
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: TextButton.icon(
-                  onPressed: _finish,
-                  icon: const Icon(Icons.check_circle_outline),
-                  label: const Text('Xong'),
+                // Sân chơi
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(18),
+                      child: LayoutBuilder(
+                        builder: (_, c) {
+                          _playSize = Size(c.maxWidth, c.maxHeight);
+
+                          // Spawn ngay khi có size (nếu chưa có)
+                          if (_bugs.isEmpty && _playSize != Size.zero) {
+                            _spawnBugs(_playSize);
+                          }
+
+                          return GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTapDown: _tapDown,
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                // nền bãi cỏ mờ mờ trong panel
+                                const _GrassBackdrop(),
+
+                                // bọ
+                                ..._bugs.map((b) {
+                                  return Positioned(
+                                    left: b.p.dx - _radius,
+                                    top: b.p.dy - _radius,
+                                    width: _radius * 2,
+                                    height: _radius * 2,
+                                    child: AnimatedScale(
+                                      duration: const Duration(milliseconds: 120),
+                                      scale: b.caught ? 0.0 : 1.0,
+                                      child: Opacity(
+                                        opacity: b.caught ? 0.15 : 1.0,
+                                        child: const _BugSprite(),
+                                      ),
+                                    ),
+                                  );
+                                }),
+
+                                // ripples tap
+                                Positioned.fill(
+                                  child: CustomPaint(painter: _RipplePainter(_ripples)),
+                                ),
+
+                                // flash ✨ khi bắt
+                                ..._flashes.map((f) {
+                                  final t = (f.age / _flashLife).clamp(0.0, 1.0);
+                                  final scale = 0.8 + 0.6 * (1 - t);
+                                  final opacity = (1 - t);
+                                  return Positioned(
+                                    left: f.p.dx - 12,
+                                    top: f.p.dy - 12,
+                                    child: Opacity(
+                                      opacity: opacity,
+                                      child: Transform.scale(
+                                        scale: scale,
+                                        child: const Text('✨', style: TextStyle(fontSize: 24)),
+                                      ),
+                                    ),
+                                  );
+                                }),
+
+                                // Huy hiệu điểm
+                                Positioned(
+                                  right: 10,
+                                  top: 10,
+                                  child: _ScoreBadge(caught: _caught, total: widget.bugs),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-            ],
+
+                const SizedBox(height: 10),
+
+                // Thanh tiến độ
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: _ProgressBar(value: progress, label: 'Đã bắt: $_caught/${widget.bugs}'),
+                ),
+
+                // Nút Xong
+                Padding(
+                  padding: const EdgeInsets.only(top: 12, bottom: 16),
+                  child: ElevatedButton.icon(
+                    onPressed: _finish,
+                    icon: const Icon(Icons.check_circle_outline),
+                    label: const Text('Xong'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF00695C),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+// ================== UI phụ ==================
+
+class _BugSprite extends StatelessWidget {
+  const _BugSprite();
+  @override
+  Widget build(BuildContext context) {
+    return const Center(child: Text('🐞', style: TextStyle(fontSize: 28)));
+  }
+}
+
+class _GrassBackdrop extends StatelessWidget {
+  const _GrassBackdrop();
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _GrassPainter(),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.12),
         ),
       ),
     );
   }
 }
 
-/// Để giữ emoji không đổi giữa các frame, chúng ta không random trong build.
-/// Nếu vẫn muốn 2 loại bọ khác nhau, có 2 cách:
-/// - Cách A (đơn giản): 1 kiểu sprite duy nhất (🐞) dùng cho mọi bug.
-/// - Cách B (mỗi con cố định kiểu riêng): thêm `isLadyBug` vào _Bug (đã làm ở trên),
-///   và vẽ theo cờ đó. Ở đây dùng A cho ổn định hoàn toàn.
-class _BugSpriteWrapper extends StatelessWidget {
-  const _BugSpriteWrapper();
+class _GrassPainter extends CustomPainter {
   @override
-  Widget build(BuildContext context) {
-    return Center(child: Text('🐞', style: const TextStyle(fontSize: 28)));
+  void paint(Canvas canvas, Size size) {
+    final bg = Paint()..color = const Color(0xAAE8F5E9);
+    canvas.drawRect(Offset.zero & size, bg);
+
+    final blades = Paint()..color = const Color(0xFF9CCC65).withOpacity(0.6);
+    final rnd = math.Random(42);
+    for (double x = 0; x < size.width; x += 14) {
+      final h = 10 + rnd.nextInt(22);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(x, size.height - h.toDouble(), 10, h.toDouble()),
+          const Radius.circular(4),
+        ),
+        blades,
+      );
+    }
   }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _RipplePainter extends CustomPainter {
+  final List<_Ripple> ripples;
+  _RipplePainter(this.ripples);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (final r in ripples) {
+      final t = (r.age / _PestCatchMinigamePageState._rippleLife).clamp(0.0, 1.0);
+      final radius = 8 + 100 * t;
+      final opacity = (1 - t);
+      final paint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..color = Colors.white.withOpacity(0.7 * opacity);
+      canvas.drawCircle(r.p, radius, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _RipplePainter oldDelegate) => true;
 }
 
 class _ScoreBadge extends StatelessWidget {
@@ -273,6 +446,48 @@ class _ScoreBadge extends StatelessWidget {
   }
 }
 
+class _ProgressBar extends StatelessWidget {
+  final double value;
+  final String label;
+  const _ProgressBar({required this.value, required this.label});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 46,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.07), blurRadius: 8)],
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Stack(
+        alignment: Alignment.centerLeft,
+        children: [
+          LayoutBuilder(builder: (_, c) {
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeOut,
+              width: (c.maxWidth * value).clamp(0.0, c.maxWidth),
+              height: 20,
+              margin: const EdgeInsets.symmetric(vertical: 13, horizontal: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFF81C784),
+                borderRadius: BorderRadius.circular(10),
+              ),
+            );
+          }),
+          Center(
+            child: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _TimerPill extends StatelessWidget {
   final int secondsLeft;
   const _TimerPill({required this.secondsLeft});
@@ -292,30 +507,4 @@ class _TimerPill extends StatelessWidget {
       ]),
     );
   }
-}
-
-class _GrassPainter extends CustomPainter {
-  const _GrassPainter();
-  @override
-  void paint(Canvas canvas, Size size) {
-    final bg = Paint()..color = const Color(0xFFC8E6C9);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(20)),
-      bg,
-    );
-    final blades = Paint()..color = const Color(0xFF81C784);
-    for (double x = 0; x < size.width; x += 16) {
-      final h = 10 + math.Random(x.toInt()).nextInt(18);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(x, size.height - h.toDouble(), 10, h.toDouble()),
-          const Radius.circular(4),
-        ),
-        blades,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

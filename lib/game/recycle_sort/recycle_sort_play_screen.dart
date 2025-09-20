@@ -218,7 +218,7 @@ class RecycleSortPlayScreenState extends State<RecycleSortPlayScreen> {
         children: [
           Positioned.fill(
             child: Image.asset(
-              'assets/images/environment_background.png',
+              'assets/images/environment/environment_background.png',
               fit: BoxFit.cover,
             ),
           ),

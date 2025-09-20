@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../plant_assets.dart'; // dùng cùng background với mini game tưới nước
 
 class LightMiniGameResult {
   final double score0to1;
@@ -8,7 +9,7 @@ class LightMiniGameResult {
 }
 
 /// Mini-game Ánh sáng: KÉO MÂY CHE NẮNG (KHÔNG đếm giờ)
-/// - Bé kéo thả các đám mây để che bớt mặt trời.
+/// - Kéo thả mây để che bớt mặt trời.
 /// - Ánh sáng = 1 - tỉ lệ mặt trời bị che.
 /// - Mục tiêu: đưa Ánh sáng vào "Vùng vàng" (targetLow..targetHigh).
 class LightAdjustMinigamePage extends StatefulWidget {
@@ -36,15 +37,14 @@ class _LightAdjustMinigamePageState extends State<LightAdjustMinigamePage>
   final List<_Cloud> _clouds = [];
   late final DateTime _start;
 
+  // vùng vàng (đã thu nhỏ 1/2 so với dải gốc)
+  late double _center;     // tâm vùng vàng
+  late double _tolerance;  // nửa bề rộng vùng vàng
+
   // nháy vùng vàng
   late final AnimationController _pulse =
   AnimationController(vsync: this, duration: const Duration(milliseconds: 900))
     ..repeat(reverse: true);
-
-  double get _center => ((widget.targetLow + widget.targetHigh) / 2.0).clamp(0.0, 1.0);
-  double get _tolerance =>
-      ((widget.targetHigh - widget.targetLow).abs() / 2.0).clamp(0.06, 0.22);
-  bool _inBand(double v) => (v - _center).abs() <= _tolerance;
 
   // key để đo kích thước sky (đúng hệ toạ độ)
   final GlobalKey _skyKey = GlobalKey();
@@ -53,12 +53,25 @@ class _LightAdjustMinigamePageState extends State<LightAdjustMinigamePage>
   void initState() {
     super.initState();
     _start = DateTime.now();
+
+    // tính tâm & tolerance từ mục tiêu, sau đó THU NHỎ 1/2
+    final baseHalf = ((widget.targetHigh - widget.targetLow).abs() / 2.0);
+    _center = ((widget.targetLow + widget.targetHigh) / 2.0).clamp(0.0, 1.0);
+    _tolerance = (baseHalf * 0.5).clamp(0.04, 0.18); // 🔧 nhỏ hơn một nửa
+
     // seed mây sau 1 frame khi đã có size
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final w = _skyWidth;
       _seedClouds(w, (1.0 - widget.current).clamp(0.0, 1.0));
       setState(() {}); // render lần đầu với mây
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // precache background để mượt
+    precacheImage(const AssetImage(PlantAssets.bg), context);
   }
 
   double get _skyWidth {
@@ -74,7 +87,7 @@ class _LightAdjustMinigamePageState extends State<LightAdjustMinigamePage>
   void _seedClouds(double skyW, double wantCover) {
     _clouds.clear();
     final rnd = math.Random();
-    final n = 4;
+    const n = 4;
     for (int i = 0; i < n; i++) {
       final w = 120 + rnd.nextInt(80); // 120..200
       final h = 60 + rnd.nextInt(24);  // 60..84
@@ -104,24 +117,25 @@ class _LightAdjustMinigamePageState extends State<LightAdjustMinigamePage>
     return Rect.fromLTWH(sunX, sunY, _sunDia, _sunDia);
   }
 
-  /// TÍNH CHUẨN HƠN: Lấy mẫu điểm trong hình tròn mặt trời (grid 32x32),
+  /// TÍNH CHUẨN HƠN: lấy mẫu điểm trong hình tròn mặt trời (grid 32x32),
   /// đếm phần trăm điểm nằm dưới bất kỳ đám mây nào.
   double _coverRatioAccurate(Rect sun) {
-    const N = 32; // 1024 điểm – rất nhẹ
+    const N = 32; // 1024 điểm – nhẹ
     int inCircle = 0, covered = 0;
     final cx = sun.center.dx, cy = sun.center.dy;
     final r = sun.width / 2;
     for (int iy = 0; iy < N; iy++) {
       for (int ix = 0; ix < N; ix++) {
         final px = sun.left + (ix + 0.5) * sun.width / N;
-        final py = sun.top  + (iy + 0.5) * sun.height / N;
+        final py = sun.top + (iy + 0.5) * sun.height / N;
         final dx = px - cx, dy = py - cy;
-        if (dx*dx + dy*dy <= r*r) {
+        if (dx * dx + dy * dy <= r * r) {
           inCircle++;
           bool underCloud = false;
           for (final c in _clouds) {
             if (px >= c.x && px <= c.x + c.w && py >= c.y && py <= c.y + c.h) {
-              underCloud = true; break;
+              underCloud = true;
+              break;
             }
           }
           if (underCloud) covered++;
@@ -157,97 +171,110 @@ class _LightAdjustMinigamePageState extends State<LightAdjustMinigamePage>
     final theme = Theme.of(context);
     final light = _currentLight();
     final pct = (light * 100).round();
-    final inBand = _inBand(light);
+    final inBand = (light - _center).abs() <= _tolerance;
 
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFFFFF3CD), Color(0xFFFFF8E1)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // 👉 nền giống mini game tưới nước
+          Image.asset(PlantAssets.bg, fit: BoxFit.cover),
+          // overlay nhẹ để chữ dễ đọc
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.white.withOpacity(0.00),
+                  Colors.white.withOpacity(0.10),
+                ],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Header (không có đồng hồ)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                    const Spacer(),
-                  ],
-                ),
-              ),
-              Text('Kéo mây che bớt mặt trời!',
-                  style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-              const SizedBox(height: 4),
-              Text('Một số cây thích BÓNG RÂM MỘT PHẦN – hãy che vừa đủ.',
-                  style: theme.textTheme.bodyMedium?.copyWith(color: Colors.black54)),
-              const SizedBox(height: 10),
 
-              // Khung bầu trời + mây kéo thả
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _SkyWithSunAndClouds(
-                  key: _skyKey,
-                  sunDia: _sunDia,
-                  clouds: _clouds,
-                  pulse: _pulse,
-                  targetCenter: _center,
-                  tolerance: _tolerance,
-                  onChanged: () => setState(() {}),
-                ),
-              ),
-
-              const SizedBox(height: 14),
-
-              // Đồng hồ đo ánh sáng + vùng vàng
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: _LightMeter(
-                  value: light,
-                  center: _center,
-                  tolerance: _tolerance,
-                  pulse: _pulse,
-                ),
-              ),
-
-              const SizedBox(height: 10),
-
-              // Chip trạng thái
-              _StatusChip(
-                text: inBand
-                    ? 'ĐÚNG VÙNG VÀNG • $pct%'
-                    : (light < _center ? 'Thiếu sáng • $pct%' : 'Thừa sáng • $pct%'),
-                color: inBand ? const Color(0xFF2E7D32) : const Color(0xFFD32F2F),
-              ),
-
-              const Spacer(),
-
-              // Nút áp dụng
-              Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: ElevatedButton.icon(
-                  onPressed: _finish,
-                  icon: const Icon(Icons.check_circle_outline),
-                  label: const Text('Áp dụng'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF00695C),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+          SafeArea(
+            child: Column(
+              children: [
+                // Header (không có đồng hồ)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                      const Spacer(),
+                    ],
                   ),
                 ),
-              ),
-            ],
+                Text('Kéo mây che bớt mặt trời!',
+                    style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 4),
+                Text('Một số cây thích BÓNG RÂM MỘT PHẦN – hãy che vừa đủ.',
+                    style: theme.textTheme.bodyMedium?.copyWith(color: Colors.black54)),
+                const SizedBox(height: 10),
+
+                // Khung bầu trời + mây kéo thả
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: _SkyWithSunAndClouds(
+                    key: _skyKey,
+                    sunDia: _sunDia,
+                    clouds: _clouds,
+                    pulse: _pulse,
+                    targetCenter: _center,
+                    tolerance: _tolerance,
+                    onChanged: () => setState(() {}),
+                  ),
+                ),
+
+                const SizedBox(height: 14),
+
+                // Đồng hồ đo ánh sáng + vùng vàng (đã thu nhỏ)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _LightMeter(
+                    value: light,
+                    center: _center,
+                    tolerance: _tolerance,
+                    pulse: _pulse,
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                // Chip trạng thái
+                _StatusChip(
+                  text: inBand
+                      ? 'ĐÚNG VÙNG VÀNG • $pct%'
+                      : (light < _center ? 'Thiếu sáng • $pct%' : 'Thừa sáng • $pct%'),
+                  color: inBand ? const Color(0xFF2E7D32) : const Color(0xFFD32F2F),
+                ),
+
+                const Spacer(),
+
+                // Nút áp dụng
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: ElevatedButton.icon(
+                    onPressed: _finish,
+                    icon: const Icon(Icons.check_circle_outline),
+                    label: const Text('Áp dụng'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF00695C),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                      elevation: 6,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -256,7 +283,8 @@ class _LightAdjustMinigamePageState extends State<LightAdjustMinigamePage>
 // ======= WIDGETS PHỤ =======
 
 class _StatusChip extends StatelessWidget {
-  final String text; final Color color;
+  final String text;
+  final Color color;
   const _StatusChip({required this.text, required this.color});
   @override
   Widget build(BuildContext context) {
@@ -324,20 +352,21 @@ class _SkyWithSunAndCloudsState extends State<_SkyWithSunAndClouds> {
           width: w,
           height: h,
           decoration: BoxDecoration(
-            color: const Color(0xFFE3F2FD),
+            color: const Color(0x80E3F2FD),
             borderRadius: BorderRadius.circular(16),
             boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8)],
           ),
           child: Stack(
             key: _stackKey,
             children: [
-              // trời
+              // trời nhẹ
               Positioned.fill(
                 child: Container(
                   decoration: const BoxDecoration(
                     gradient: LinearGradient(
-                      begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                      colors: [Color(0xFFB3E5FC), Color(0xFFE1F5FE)],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Color(0x99B3E5FC), Color(0x99E1F5FE)],
                     ),
                   ),
                 ),
@@ -345,9 +374,11 @@ class _SkyWithSunAndCloudsState extends State<_SkyWithSunAndClouds> {
 
               // mặt trời
               Positioned(
-                left: sun.left, top: sun.top,
+                left: sun.left,
+                top: sun.top,
                 child: Container(
-                  width: sun.width, height: sun.height,
+                  width: sun.width,
+                  height: sun.height,
                   decoration: const BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: RadialGradient(colors: [Color(0xFFFFF176), Color(0xFFFFC107)]),
@@ -360,8 +391,10 @@ class _SkyWithSunAndCloudsState extends State<_SkyWithSunAndClouds> {
 
               // vùng vàng (giải thích mục tiêu)
               Positioned(
-                left: 16, right: 16,
-                top: sun.bottom + 24, height: 20,
+                left: 16,
+                right: 16,
+                top: sun.bottom + 24,
+                height: 20,
                 child: AnimatedBuilder(
                   animation: widget.pulse,
                   builder: (_, __) => Container(
@@ -382,7 +415,8 @@ class _SkyWithSunAndCloudsState extends State<_SkyWithSunAndClouds> {
               // mây kéo thả
               ...widget.clouds.map((c) {
                 return Positioned(
-                  left: c.x, top: c.y,
+                  left: c.x,
+                  top: c.y,
                   child: GestureDetector(
                     onPanStart: (d) {
                       // toạ độ local theo Stack cha
@@ -396,8 +430,10 @@ class _SkyWithSunAndCloudsState extends State<_SkyWithSunAndClouds> {
                       final box = _stackKey.currentContext!.findRenderObject() as RenderBox;
                       final local = box.globalToLocal(d.globalPosition);
                       setState(() {
-                        _dragging!.x = (local.dx - _offsetInCloud.dx).clamp(0.0, w - _dragging!.w);
-                        _dragging!.y = (local.dy - _offsetInCloud.dy).clamp(0.0, h - _dragging!.h);
+                        _dragging!.x =
+                            (local.dx - _offsetInCloud.dx).clamp(0.0, w - _dragging!.w);
+                        _dragging!.y =
+                            (local.dy - _offsetInCloud.dy).clamp(0.0, h - _dragging!.h);
                       });
                       widget.onChanged(); // cập nhật đồng hồ đo
                     },
@@ -443,6 +479,7 @@ class _CloudPainter extends CustomPainter {
       ..color = const Color(0xFFB0BEC5);
     canvas.drawPath(p, stroke);
   }
+
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
@@ -463,13 +500,14 @@ class _LightMeter extends StatelessWidget {
     return LayoutBuilder(
       builder: (_, c) {
         final w = c.maxWidth;
-        final h = 20.0;
+        const trackH = 20.0;
         final goldW = (tolerance * 2 * w).clamp(24.0, w);
         final goldL = (center * w - goldW / 2).clamp(0.0, w - goldW);
         final vX = (value * w).clamp(0.0, w);
 
         return Container(
-          width: w, height: 48,
+          width: w,
+          height: 48,
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
@@ -479,14 +517,20 @@ class _LightMeter extends StatelessWidget {
           child: Stack(
             children: [
               Positioned(
-                left: 12, right: 12, top: 14, height: h,
+                left: 12,
+                right: 12,
+                top: 14,
+                height: trackH,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(10),
                   child: Container(color: const Color(0xFFE3F2FD)),
                 ),
               ),
               Positioned(
-                left: 12 + goldL, top: 14, height: h, width: goldW,
+                left: 12 + goldL,
+                top: 14,
+                height: trackH,
+                width: goldW,
                 child: AnimatedBuilder(
                   animation: pulse,
                   builder: (_, __) => Container(
@@ -500,7 +544,10 @@ class _LightMeter extends StatelessWidget {
               ),
               // kim giá trị hiện tại
               Positioned(
-                left: 12 + vX - 1.5, top: 10, height: h + 8, width: 3,
+                left: 12 + vX - 1.5,
+                top: 10,
+                height: trackH + 8,
+                width: 3,
                 child: Container(color: const Color(0xFF1E88E5)),
               ),
             ],

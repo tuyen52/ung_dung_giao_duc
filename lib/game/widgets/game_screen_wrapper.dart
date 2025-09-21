@@ -1,6 +1,8 @@
+// game_screen_wrapper.dart
+
 import 'package:flutter/material.dart';
 import 'package:mobileapp/services/audio_service.dart';
-import 'package:mobileapp/services/settings_service.dart'; // MỚI: Import SettingsService
+import 'package:mobileapp/services/settings_service.dart';
 import 'game_pause_menu.dart';
 
 class GameScreenWrapper extends StatefulWidget {
@@ -10,9 +12,6 @@ class GameScreenWrapper extends StatefulWidget {
   final VoidCallback? onSaveAndExit;
   final VoidCallback? onRestart;
   final Widget? handbookContent;
-
-  // CẬP NHẬT: Tham số này giờ là giá trị mặc định cho lần đầu tiên.
-  // Logic chính sẽ dựa vào SettingsService.
   final bool showHandbookOnStart;
 
   const GameScreenWrapper({
@@ -23,7 +22,7 @@ class GameScreenWrapper extends StatefulWidget {
     this.onSaveAndExit,
     this.onRestart,
     this.handbookContent,
-    this.showHandbookOnStart = true, // Giữ nguyên giá trị mặc định
+    this.showHandbookOnStart = true,
   });
 
   @override
@@ -34,12 +33,10 @@ enum _Interruption { none, menu, handbook, settings }
 
 class _GameScreenWrapperState extends State<GameScreenWrapper> {
   final _audioService = AudioService.instance;
-  // MỚI: Thêm instance của SettingsService
   final _settingsService = SettingsService.instance;
 
   _Interruption _interruption = _Interruption.none;
   bool _handbookShown = false;
-  // MỚI: State để lưu trạng thái tự động bật hướng dẫn
   late bool _autoShowHandbook;
 
   bool get _isFrozen => _interruption != _Interruption.none;
@@ -47,15 +44,11 @@ class _GameScreenWrapperState extends State<GameScreenWrapper> {
   @override
   void initState() {
     super.initState();
-    // MỚI: Đọc cài đặt ngay khi vào màn hình
     _autoShowHandbook = _settingsService.getAutoShowHandbook();
-
     _audioService.playBgm('audio/background_music.mp3');
 
-    // CẬP NHẬT: Logic hiển thị hướng dẫn dựa trên cài đặt đã lưu
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      // Chỉ hiện khi cài đặt đang bật, có nội dung và chưa được hiển thị
       if (_autoShowHandbook &&
           widget.handbookContent != null &&
           !_handbookShown) {
@@ -71,7 +64,6 @@ class _GameScreenWrapperState extends State<GameScreenWrapper> {
     super.dispose();
   }
 
-  // ... (giữ nguyên hàm _buildDialogButton và _showCustomDialog) ...
   Widget _buildDialogButton({
     required String text,
     required IconData icon,
@@ -93,6 +85,7 @@ class _GameScreenWrapperState extends State<GameScreenWrapper> {
     );
   }
 
+  // CẬP NHẬT: Hộp thoại tùy chỉnh, đáp ứng với màn hình ngang
   void _showCustomDialog({
     required String title,
     required Widget content,
@@ -103,52 +96,62 @@ class _GameScreenWrapperState extends State<GameScreenWrapper> {
       context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
-        final maxH = MediaQuery.of(context).size.height * 0.6;
+        final size = MediaQuery.of(context).size;
+        final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+
+        final maxHeight = size.height * (isLandscape ? 0.8 : 0.6);
+        final maxWidth = size.width * (isLandscape ? 0.65 : 0.85);
+
         final contentBox = isScrollable
-            ? ConstrainedBox(
-          constraints: BoxConstraints(maxHeight: maxH),
-          child: SingleChildScrollView(child: content),
-        )
+            ? SingleChildScrollView(child: content)
             : content;
 
         return Dialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.0)),
           elevation: 0,
           backgroundColor: Colors.transparent,
-          child: Container(
-            padding: const EdgeInsets.all(24.0),
-            decoration: BoxDecoration(
-              color: const Color(0xFF2C3E50),
-              shape: BoxShape.rectangle,
-              borderRadius: BorderRadius.circular(20.0),
-              border: Border.all(color: Colors.blueAccent, width: 2),
-              boxShadow: const [
-                BoxShadow(color: Colors.black54, blurRadius: 10.0, offset: Offset(0.0, 10.0)),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 22.0,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxWidth),
+            child: Container(
+              padding: const EdgeInsets.all(24.0),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2C3E50),
+                shape: BoxShape.rectangle,
+                borderRadius: BorderRadius.circular(20.0),
+                border: Border.all(color: Colors.blueAccent, width: 2),
+                boxShadow: const [
+                  BoxShadow(color: Colors.black54, blurRadius: 10.0, offset: Offset(0.0, 10.0)),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 22.0,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 16.0),
-                Flexible(child: contentBox),
-                const SizedBox(height: 24.0),
-                if (actions.isNotEmpty)
-                // CẬP NHẬT: Dùng Wrap để các nút tự xuống dòng nếu không đủ chỗ
-                  Wrap(
-                    alignment: WrapAlignment.center,
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: actions,
+                  const SizedBox(height: 16.0),
+                  // Giới hạn chiều cao của nội dung để tránh tràn
+                  Flexible(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(maxHeight: maxHeight * 0.7),
+                      child: contentBox,
+                    ),
                   ),
-              ],
+                  const SizedBox(height: 24.0),
+                  if (actions.isNotEmpty)
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: actions,
+                    ),
+                ],
+              ),
             ),
           ),
         );
@@ -156,8 +159,6 @@ class _GameScreenWrapperState extends State<GameScreenWrapper> {
     );
   }
 
-
-  // ... (giữ nguyên _showExitConfirmationDialog và _showSettings) ...
   void _showExitConfirmationDialog() {
     _showCustomDialog(
       title: 'Xác nhận thoát',
@@ -177,7 +178,6 @@ class _GameScreenWrapperState extends State<GameScreenWrapper> {
             },
             backgroundColor: Colors.green,
           ),
-        if (widget.onSaveAndExit != null) const SizedBox(height: 8),
         _buildDialogButton(
           text: 'Thoát & Tổng kết',
           icon: Icons.flag_rounded,
@@ -187,7 +187,6 @@ class _GameScreenWrapperState extends State<GameScreenWrapper> {
           },
           backgroundColor: Colors.redAccent,
         ),
-        const SizedBox(height: 8),
         _buildDialogButton(
           text: 'Hủy',
           icon: Icons.cancel_outlined,
@@ -215,7 +214,8 @@ class _GameScreenWrapperState extends State<GameScreenWrapper> {
                 value: volume,
                 activeColor: Colors.blueAccent,
                 inactiveColor: Colors.blueAccent.withOpacity(0.3),
-                onChanged: (newVolume) => _audioService.volumeNotifier.value = newVolume,
+                onChanged: (newVolume) =>
+                _audioService.volumeNotifier.value = newVolume,
               );
             },
           ),
@@ -236,8 +236,6 @@ class _GameScreenWrapperState extends State<GameScreenWrapper> {
     );
   }
 
-
-  // MỚI: Hàm wrapper để quản lý trạng thái khi mở/đóng dialog
   void _showHandbookDialogWrapper() {
     setState(() => _interruption = _Interruption.handbook);
     _showHandbookDialog(onClosed: () {
@@ -246,101 +244,106 @@ class _GameScreenWrapperState extends State<GameScreenWrapper> {
     });
   }
 
-  // CẬP NHẬT: Hàm hiển thị dialog hướng dẫn
+  // CẬP NHẬT: Hộp thoại hướng dẫn, đáp ứng với màn hình ngang
   void _showHandbookDialog({VoidCallback? onClosed}) {
     if (widget.handbookContent == null) return;
 
-    // Dùng StatefulBuilder để dialog có thể tự cập nhật trạng thái của nút toggle
-    // mà không cần rebuild cả màn hình game.
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
+            final size = MediaQuery.of(context).size;
+            final isLandscape =
+                MediaQuery.of(context).orientation == Orientation.landscape;
 
-            // Hàm để xử lý khi nhấn nút toggle
+            final maxHeight = size.height * (isLandscape ? 0.8 : 0.6);
+            final maxWidth = size.width * (isLandscape ? 0.65 : 0.85);
+
             void toggleAutoShow() {
               final newValue = !_autoShowHandbook;
               _settingsService.setAutoShowHandbook(newValue);
-              // Cập nhật state của dialog và cả màn hình wrapper
               setDialogState(() => _autoShowHandbook = newValue);
               setState(() => _autoShowHandbook = newValue);
             }
-
-            final maxH = MediaQuery.of(context).size.height * 0.6;
-            final contentBox = ConstrainedBox(
-              constraints: BoxConstraints(maxHeight: maxH),
-              child: SingleChildScrollView(child: widget.handbookContent!),
-            );
 
             return Dialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.0)),
               elevation: 0,
               backgroundColor: Colors.transparent,
-              child: Container(
-                padding: const EdgeInsets.all(24.0),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2C3E50),
-                  shape: BoxShape.rectangle,
-                  borderRadius: BorderRadius.circular(20.0),
-                  border: Border.all(color: Colors.blueAccent, width: 2),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    const Text(
-                      'Hướng dẫn',
-                      style: TextStyle(
-                        fontSize: 22.0,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: maxWidth),
+                child: Container(
+                  padding: const EdgeInsets.all(24.0),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2C3E50),
+                    shape: BoxShape.rectangle,
+                    borderRadius: BorderRadius.circular(20.0),
+                    border: Border.all(color: Colors.blueAccent, width: 2),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      const Text(
+                        'Hướng dẫn',
+                        style: TextStyle(
+                          fontSize: 22.0,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 16.0),
-                    Flexible(child: contentBox),
-                    const SizedBox(height: 24.0),
-                    // CẬP NHẬT: Actions giờ là một Row
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 10,
-                      alignment: WrapAlignment.center,
-                      children: [
-                        // Nút bật/tắt mới
-                        TextButton.icon(
-                          icon: Icon(
-                            _autoShowHandbook
-                                ? Icons.check_box_rounded
-                                : Icons.check_box_outline_blank_rounded,
-                          ),
-                          label: Text(_autoShowHandbook ? 'Tự động bật' : 'Đã tắt'),
-                          onPressed: toggleAutoShow,
-                          style: TextButton.styleFrom(
-                              foregroundColor: Colors.white,
-                              side: BorderSide(color: Colors.white.withOpacity(0.7)),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16)
-                          ),
+                      const SizedBox(height: 16.0),
+                      Flexible(
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(maxHeight: maxHeight * 0.7),
+                          child: SingleChildScrollView(child: widget.handbookContent!),
                         ),
-
-                        // Nút "Đã hiểu"
-                        ElevatedButton.icon(
-                          icon: const Icon(Icons.thumb_up_alt_outlined),
-                          label: const Text('Đã hiểu'),
-                          onPressed: () {
-                            Navigator.of(context).pop();
-                            onClosed?.call();
-                          },
-                          style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blueAccent,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16)
+                      ),
+                      const SizedBox(height: 24.0),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 10,
+                        alignment: WrapAlignment.center,
+                        children: [
+                          TextButton.icon(
+                            icon: Icon(
+                              _autoShowHandbook
+                                  ? Icons.check_box_rounded
+                                  : Icons.check_box_outline_blank_rounded,
+                            ),
+                            label: Text(_autoShowHandbook
+                                ? 'Tự động bật'
+                                : 'Đã tắt'),
+                            onPressed: toggleAutoShow,
+                            style: TextButton.styleFrom(
+                                foregroundColor: Colors.white,
+                                side: BorderSide(
+                                    color: Colors.white.withOpacity(0.7)),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12)),
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 12, horizontal: 16)),
                           ),
-                        ),
-                      ],
-                    )
-                  ],
+                          ElevatedButton.icon(
+                            icon: const Icon(Icons.thumb_up_alt_outlined),
+                            label: const Text('Đã hiểu'),
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                              onClosed?.call();
+                            },
+                            style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blueAccent,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12)),
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 14, horizontal: 16)),
+                          ),
+                        ],
+                      )
+                    ],
+                  ),
                 ),
               ),
             );
@@ -371,11 +374,13 @@ class _GameScreenWrapperState extends State<GameScreenWrapper> {
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
-        // ... (giữ nguyên flexibleSpace) ...
         flexibleSpace: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [Colors.black.withOpacity(0.7), Colors.black.withOpacity(0.0)],
+              colors: [
+                Colors.black.withOpacity(0.7),
+                Colors.black.withOpacity(0.0)
+              ],
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
             ),
@@ -388,7 +393,7 @@ class _GameScreenWrapperState extends State<GameScreenWrapper> {
             tooltip: 'Hướng dẫn',
             onPressed: widget.handbookContent == null
                 ? null
-                : _showHandbookDialogWrapper, // CẬP NHẬT: Gọi hàm wrapper
+                : _showHandbookDialogWrapper,
           ),
           IconButton(
             icon: const Icon(Icons.pause_circle_outline, color: Colors.white),
@@ -403,7 +408,8 @@ class _GameScreenWrapperState extends State<GameScreenWrapper> {
           widget.builder(context, _isFrozen),
           if (_interruption == _Interruption.menu)
             GamePauseMenu(
-              onResumed: () => setState(() => _interruption = _Interruption.none),
+              onResumed: () =>
+                  setState(() => _interruption = _Interruption.none),
               onRestart: () {
                 setState(() => _interruption = _Interruption.none);
                 widget.onRestart?.call();

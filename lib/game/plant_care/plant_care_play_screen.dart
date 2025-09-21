@@ -1,3 +1,5 @@
+// lib/game/plant_care/plant_care_play_screen.dart
+
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -12,14 +14,12 @@ import 'minigames/pest_catch_minigame.dart';
 import 'minigames/light_adjust_minigame.dart';
 import 'minigames/nutrient_mix_minigame.dart';
 import 'minigames/prune_minigame.dart';
+// lib/game/plant_care/plant_care_play_screen.dart
 
 class PlantCarePlayScreen extends StatefulWidget {
   final bool isPaused;
   final DifficultyLevel difficulty;
-
   final Map<String, dynamic>? initialStateMap;
-
-  // ✅ callback hệ thống
   final void Function(int correct, int wrong) onFinish;
   final Future<void> Function({
   required Map<String, dynamic> state,
@@ -28,7 +28,6 @@ class PlantCarePlayScreen extends StatefulWidget {
   required int timeLeftSec,
   }) onSaveProgress;
   final Future<void> Function() onClearProgress;
-
   final int totalDays;
   final int dayLengthSec;
 
@@ -55,11 +54,7 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
   DateTime? _lastTick;
   double _accum = 0.0;
   bool _finishNotified = false;
-
-  // Tổng sao tích lũy qua các ngày → dùng làm "correct"
   int _sumStars = 0;
-
-  // Salt cố định cho phiên chơi để mục tiêu ổn định theo NGÀY nhưng khác giữa các phiên
   late final int _rngSalt;
 
   @override
@@ -72,11 +67,8 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
       totalDays: widget.totalDays,
       dayLengthSec: widget.dayLengthSec,
     );
-
-    // Đọc salt đã lưu nếu có; nếu chưa thì tạo mới theo thời gian hiện tại
     _rngSalt = (widget.initialStateMap?['rngSalt'] as int?) ??
         (DateTime.now().microsecondsSinceEpoch & 0x7fffffff);
-
     _state.setPaused(widget.isPaused);
     _startTicker();
   }
@@ -84,23 +76,21 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Precache toàn bộ ảnh để tránh nháy khi đổi stage
     for (final p in PlantAssets.all) {
       precacheImage(AssetImage(p), context);
     }
   }
 
-  // ===== Public API cho Wrapper (giống Recycle Sort) =====
   Future<void> finishGame() async {
     _ticker?.cancel();
     await widget.onClearProgress();
     if (!mounted) return;
-    widget.onFinish(_sumStars, 0); // correct = tổng sao, wrong = 0
+    widget.onFinish(_sumStars, 0);
   }
 
   Future<void> outToHome() async {
     await widget.onSaveProgress(
-      state: _stateMapWithSalt(), // ✅ lưu kèm rngSalt
+      state: _stateMapWithSalt(),
       dayIndex: _state.dayIndex,
       stars: _sumStars,
       timeLeftSec: _state.timeLeftSec,
@@ -108,7 +98,23 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
     if (!mounted) return;
     Navigator.pushNamedAndRemoveUntil(context, '/shell', (_) => false);
   }
-  // =======================================================
+
+  Future<void> restartGame() async {
+    _ticker?.cancel();
+    await widget.onClearProgress();
+    if (!mounted) return;
+    setState(() {
+      _state = PlantState(
+        difficultyLevel: widget.difficulty,
+        totalDays: widget.totalDays,
+        dayLengthSec: widget.dayLengthSec,
+      );
+      _sumStars = 0;
+      _finishNotified = false;
+      _accum = 0.0;
+    });
+    _startTicker();
+  }
 
   @override
   void didUpdateWidget(covariant PlantCarePlayScreen oldWidget) {
@@ -131,37 +137,31 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
       final now = DateTime.now();
       final dt = now.difference(_lastTick!).inMilliseconds / 1000.0;
       _lastTick = now;
-
       _accum += dt;
       while (_accum >= 1.0) {
         _state.tick(1.0);
         _accum -= 1.0;
       }
-
       if (_state.timeLeftSec <= 0 && !_state.isFinished) {
         _onDayEnd();
       }
-
       if (_state.isFinished && !_finishNotified) {
         _finishNotified = true;
-        finishGame(); // kết thúc tự nhiên
+        finishGame();
       }
-
       if (mounted) setState(() {});
     });
   }
 
   Future<void> _onDayEnd() async {
-    final stars = _state.endDayAndScore(); // 0..3
+    final stars = _state.endDayAndScore();
     _sumStars += stars;
-
     await widget.onSaveProgress(
-      state: _stateMapWithSalt(), // ✅ lưu kèm rngSalt
+      state: _stateMapWithSalt(),
       dayIndex: _state.dayIndex - 1,
       stars: _sumStars,
       timeLeftSec: _state.timeLeftSec,
     );
-
     if (!mounted) return;
     await showDialog(
       context: context,
@@ -177,19 +177,14 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
     return '$m:$s';
   }
 
-  // Gộp base seed với salt để ổn định theo NGÀY của phiên hiện tại
   int _dailySeed(int base) => (base ^ _rngSalt) & 0x7fffffff;
 
-  // Lưu state kèm rngSalt để khi mở lại trong cùng ngày thì mục tiêu không đổi
   Map<String, dynamic> _stateMapWithSalt() {
     final m = _state.toMap();
     m['rngSalt'] = _rngSalt;
     return m;
   }
 
-  // ======== MINI-GAMES (mục tiêu thay đổi theo NGÀY) ========
-
-  // Tính mục tiêu theo ngày dựa trên band gốc (0..100) → (low, high) 0..1
   ({double low, double high}) _dailyBand({
     required Band band,
     required int seed,
@@ -201,14 +196,11 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
     final baseHigh = band.high / 100.0;
     final baseCenter = (baseLow + baseHigh) / 2.0;
     final baseHalf = (baseHigh - baseLow) / 2.0;
-
     final rnd = math.Random(seed);
     final shift = (rnd.nextDouble() * 2 - 1) * baseHalf * shiftFactor;
     final scale = scaleMin + rnd.nextDouble() * (scaleMax - scaleMin);
-
     double center = (baseCenter + shift).clamp(0.0, 1.0);
     double half = (baseHalf * scale).clamp(0.06, 0.25);
-
     double low = center - half;
     double high = center + half;
     if (low < 0) {
@@ -219,141 +211,96 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
       low = (low - (high - 1.0)).clamp(0.0, 1.0);
       high = 1.0;
     }
-
-    // ✅ THÊM ĐOẠN NÀY ĐỂ ĐẢM BẢO MỤC TIÊU LUÔN > 50%
     const minTargetLow = 0.5;
     if (low < minTargetLow) {
-      final offset = minTargetLow - low; // Tính toán độ lệch
-      low += offset;                     // Nâng `low` lên 50%
-      high += offset;                    // Nâng `high` lên một khoảng tương ứng
-
-      // Đảm bảo `high` không vượt quá 100% sau khi nâng
-      if (high > 1.0) high = 1.0;
+      final offset = minTargetLow - low;
+      low += offset;
+      high = (high + offset).clamp(0.0, 1.0);
     }
-
     return (low: low, high: high);
   }
 
-  // -- Tưới nước
   Future<void> _openWateringMiniGame() async {
     final band = _state.stageConfig.bands[statWater]!;
-    // base seed theo ngày + stage + độ khó
     final seed0 = (_state.dayIndex * 733) ^
     (_state.stage.index * 997) ^
     (widget.difficulty.index * 53);
-    final seed = _dailySeed(seed0); // ✅ trộn thêm salt phiên chơi
-
+    final seed = _dailySeed(seed0);
     final tgt = _dailyBand(
-      band: band,
-      seed: seed,
-      shiftFactor: 0.4,
-      scaleMin: 0.92,
-      scaleMax: 1.08,
-    );
-
+        band: band, seed: seed, shiftFactor: 0.4, scaleMin: 0.92, scaleMax: 1.08);
     final res = await Navigator.push<WateringMiniGameResult>(
       context,
       MaterialPageRoute(
         builder: (_) => WateringMinigamePage(
-          targetLow: tgt.low,
-          targetHigh: tgt.high,
-          durationSec: 15,
-          stage: _state.stage, // mini-game tự chỉnh tolerance/tốc độ theo stage
-        ),
+            targetLow: tgt.low,
+            targetHigh: tgt.high,
+            durationSec: 15,
+            stage: _state.stage),
         fullscreenDialog: true,
       ),
     );
     if (res == null) return;
-
     final delta = 0.8 + res.score0to1 * 2.2;
     _state.applyTool(ToolType.water, delta: delta);
     setState(() {});
   }
 
-  // -- Ánh sáng (mini-game kéo mây che nắng – không dùng đồng hồ)
   Future<void> _openLightMiniGame() async {
     final band = _state.stageConfig.bands[statLight]!;
     final current = (_state.stats.light / 100.0).clamp(0.0, 1.0);
-
     final seed0 = (_state.dayIndex * 131071) ^
     (_state.stage.index * 4099) ^
     (widget.difficulty.index * 233);
-    final seed = _dailySeed(seed0); // ✅
-
+    final seed = _dailySeed(seed0);
     final tgt = _dailyBand(
-      band: band,
-      seed: seed,
-      shiftFactor: 0.5,
-      scaleMin: 0.9,
-      scaleMax: 1.1,
-    );
-
+        band: band, seed: seed, shiftFactor: 0.5, scaleMin: 0.9, scaleMax: 1.1);
     final res = await Navigator.push<LightMiniGameResult>(
       context,
       MaterialPageRoute(
         builder: (_) => LightAdjustMinigamePage(
-          targetLow: tgt.low,
-          targetHigh: tgt.high,
-          current: current,
-          durationSec: 15, // giữ để tương thích, bản không giờ sẽ bỏ qua
-        ),
+            targetLow: tgt.low,
+            targetHigh: tgt.high,
+            current: current,
+            durationSec: 15),
         fullscreenDialog: true,
       ),
     );
     if (res == null) return;
-
     final center = (tgt.low + tgt.high) / 2.0;
     final needIncrease = current < center;
     final magnitude = 0.6 + res.score0to1 * 2.0;
     final delta = needIncrease ? magnitude : -magnitude;
-
     _state.applyTool(ToolType.light, delta: delta);
     setState(() {});
   }
 
-  // -- Bón phân (mini-game không đồng hồ)
   Future<void> _openNutrientMiniGame() async {
     final band = _state.stageConfig.bands[statNutrient]!;
-
     final seed0 = (_state.dayIndex * 1000003) ^
     (_state.stage.index * 9176) ^
     (widget.difficulty.index * 271);
-    final seed = _dailySeed(seed0); // ✅
-
+    final seed = _dailySeed(seed0);
     final tgt = _dailyBand(
-      band: band,
-      seed: seed,
-      shiftFactor: 0.5,
-      scaleMin: 0.9,
-      scaleMax: 1.1,
-    );
-
+        band: band, seed: seed, shiftFactor: 0.5, scaleMin: 0.9, scaleMax: 1.1);
     final res = await Navigator.push<NutrientMiniGameResult>(
       context,
       MaterialPageRoute(
-        builder: (_) => NutrientMixMinigamePage(
-          targetLow: tgt.low,
-          targetHigh: tgt.high,
-        ),
+        builder: (_) =>
+            NutrientMixMinigamePage(targetLow: tgt.low, targetHigh: tgt.high),
         fullscreenDialog: true,
       ),
     );
     if (res == null) return;
-
     final delta = 0.6 + res.score0to1 * 2.4;
     _state.applyTool(ToolType.nutrient, delta: delta);
     setState(() {});
   }
 
-  // -- Bắt sâu
   Future<void> _openPestMiniGame() async {
     final res = await Navigator.push<PestCatchMiniGameResult>(
       context,
       MaterialPageRoute(
-        builder: (_) => const PestCatchMinigamePage(
-          durationSec: 20,
-          bugs: 10,
-        ),
+        builder: (_) => const PestCatchMinigamePage(durationSec: 20, bugs: 10),
         fullscreenDialog: true,
       ),
     );
@@ -363,30 +310,22 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
     setState(() {});
   }
 
-  // -- Tỉa cành (mỗi ngày bố cục khác: truyền daySeed)
   Future<void> _openPruneMiniGame() async {
-    // base seed ổn định theo NGÀY + giai đoạn + độ khó
     final daySeed0 = (_state.dayIndex * 4241) ^
     (_state.stage.index * 73) ^
     (widget.difficulty.index * 11);
-    final daySeed = _dailySeed(daySeed0); // ✅ trộn salt
-
-    // Có thể tăng số cành ở giai đoạn sau
+    final daySeed = _dailySeed(daySeed0);
     final branches = switch (_state.stage) {
       PlantStage.seed => 5,
       PlantStage.seedling => 6,
       PlantStage.adult => 7,
       PlantStage.flowering => 8,
     };
-
     final res = await Navigator.push<PruneMiniGameResult>(
       context,
       MaterialPageRoute(
         builder: (_) => PruneMinigamePage(
-          durationSec: 20,   // giữ để tương thích
-          branches: branches,
-          daySeed: daySeed,  // ✅ mỗi ngày một bố cục
-        ),
+            durationSec: 20, branches: branches, daySeed: daySeed),
         fullscreenDialog: true,
       ),
     );
@@ -400,43 +339,8 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
   Widget build(BuildContext context) {
     final o = MediaQuery.of(context).orientation;
     final cfg = _state.stageConfig;
-
-    final rightPanel = _RightStatsPanel(stats: _state.stats, bands: cfg.bands);
-
-    // MỞ HẾT 5 CÔNG CỤ (chưa khoá theo giai đoạn)
-    final toolBar = _ToolBar(
-      stage: _state.stage,
-      tools: const [
-        ToolType.water,
-        ToolType.light,
-        ToolType.nutrient,
-        ToolType.pest,
-        ToolType.prune,
-      ],
-      onUse: (t) async {
-        switch (t) {
-          case ToolType.water:
-            await _openWateringMiniGame();
-            break;
-          case ToolType.light:
-            await _openLightMiniGame();
-            break;
-          case ToolType.nutrient:
-            await _openNutrientMiniGame();
-            break;
-          case ToolType.pest:
-            await _openPestMiniGame();
-            break;
-          case ToolType.prune:
-            await _openPruneMiniGame();
-            break;
-        }
-      },
-    );
-
     final centerPlant =
     _PlantCard(stage: _state.stage, health: _state.stats.health);
-
     final topInfo = _TopInfoBar(
       dayIndex: _state.dayIndex,
       totalDays: _state.totalDays,
@@ -462,17 +366,50 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
                   const SizedBox(height: 8),
                   Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      padding:
+                      const EdgeInsets.symmetric(horizontal: 12),
                       child: Row(
                         children: [
                           Expanded(child: Center(child: centerPlant)),
                           const SizedBox(width: 12),
-                          SizedBox(width: 140, child: rightPanel),
+                          SizedBox(
+                            width: 140,
+                            child: _RightStatsPanel(
+                                stats: _state.stats, bands: cfg.bands),
+                          ),
                         ],
                       ),
                     ),
                   ),
-                  toolBar,
+                  _ToolBar(
+                    stage: _state.stage,
+                    tools: const [
+                      ToolType.water,
+                      ToolType.light,
+                      ToolType.nutrient,
+                      ToolType.pest,
+                      ToolType.prune,
+                    ],
+                    onUse: (t) async {
+                      switch (t) {
+                        case ToolType.water:
+                          await _openWateringMiniGame();
+                          break;
+                        case ToolType.light:
+                          await _openLightMiniGame();
+                          break;
+                        case ToolType.nutrient:
+                          await _openNutrientMiniGame();
+                          break;
+                        case ToolType.pest:
+                          await _openPestMiniGame();
+                          break;
+                        case ToolType.prune:
+                          await _openPruneMiniGame();
+                          break;
+                      }
+                    },
+                  ),
                   const SizedBox(height: 8),
                 ],
               )
@@ -488,8 +425,84 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
                       ],
                     ),
                   ),
-                  SizedBox(width: 180, child: rightPanel),
-                  RotatedBox(quarterTurns: 1, child: toolBar),
+                  SizedBox(
+                    width: 125,
+                    child: SingleChildScrollView(
+                      child: Column(
+                        children: [
+                          GaugeRing(
+                              label: 'Nước',
+                              icon: const Icon(Icons.opacity),
+                              value: _state.stats.water,
+                              band: cfg.bands[statWater]!,
+                              size: 75),
+                          GaugeRing(
+                              label: 'Ánh sáng',
+                              icon: const Icon(Icons.wb_sunny),
+                              value: _state.stats.light,
+                              band: cfg.bands[statLight]!,
+                              size: 75),
+                          GaugeRing(
+                              label: 'Dinh dưỡng',
+                              icon: const Icon(Icons.grass),
+                              value: _state.stats.nutrient,
+                              band: cfg.bands[statNutrient]!,
+                              size: 75),
+                          GaugeRing(
+                              label: 'Sạch/Bảo vệ',
+                              icon: const Icon(Icons.spa),
+                              value: _state.stats.clean,
+                              band: cfg.bands[statClean]!,
+                              size: 75),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 12, horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.06),
+                          blurRadius: 8,
+                          offset: const Offset(-2, 0),
+                        )
+                      ],
+                    ),
+                    child: SingleChildScrollView(
+                      child: Column(
+                        children: [
+                          ToolButton(
+                              icon: Icons.opacity,
+                              label: 'Tưới',
+                              onTap: () => _openWateringMiniGame(),
+                              size: 50),
+                          ToolButton(
+                              icon: Icons.wb_sunny,
+                              label: 'Ánh sáng',
+                              onTap: () => _openLightMiniGame(),
+                              size: 50),
+                          ToolButton(
+                              icon: Icons.grass,
+                              label: 'Bón phân',
+                              onTap: () => _openNutrientMiniGame(),
+                              size: 50),
+                          ToolButton(
+                              icon: Icons.bug_report,
+                              label: 'Bắt sâu',
+                              onTap: () => _openPestMiniGame(),
+                              size: 50),
+                          ToolButton(
+                              icon: Icons.content_cut,
+                              label: 'Tỉa',
+                              onTap: () => _openPruneMiniGame(),
+                              size: 50),
+                        ],
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -500,32 +513,25 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
   }
 }
 
-// ===== NỀN & THẺ CÂY (ảnh) =====
-
 class _CuteBackground extends StatelessWidget {
   const _CuteBackground();
-
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Image.asset(PlantAssets.bg, fit: BoxFit.cover),
-        // overlay nhẹ để text/điểm dễ đọc trên nền
-        Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                Colors.white.withOpacity(0.0),
-                Colors.white.withOpacity(0.10),
-              ],
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-            ),
+    return Stack(fit: StackFit.expand, children: [
+      Image.asset(PlantAssets.bg, fit: BoxFit.cover),
+      Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Colors.white.withOpacity(0.0),
+              Colors.white.withOpacity(0.10)
+            ],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
           ),
         ),
-      ],
-    );
+      ),
+    ]);
   }
 }
 
@@ -533,6 +539,92 @@ class _PlantCard extends StatelessWidget {
   final PlantStage stage;
   final double health;
   const _PlantCard({required this.stage, required this.health});
+
+  @override
+  Widget build(BuildContext context) {
+    final healthColor = Color.lerp(const Color(0xFFE53935),
+        const Color(0xFF2E7D32), (health / 100.0).clamp(0, 1))!;
+
+    return FittedBox(
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(.9),
+          borderRadius: BorderRadius.circular(28),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withOpacity(.08),
+                blurRadius: 12,
+                offset: const Offset(0, 6))
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(_stageText(),
+                style:
+                const TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: 200,
+              height: 200,
+              child: Stack(alignment: Alignment.center, children: [
+                Container(
+                  width: 170,
+                  height: 170,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                          color: healthColor.withOpacity(.28),
+                          blurRadius: 24,
+                          spreadRadius: 4)
+                    ],
+                  ),
+                ),
+                Image.asset(_imgForStage(), fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) {
+                      final emoji = {
+                        PlantStage.seed: '🌱',
+                        PlantStage.seedling: '🌿',
+                        PlantStage.adult: '🌳',
+                        PlantStage.flowering: '🌸',
+                      }[stage]!;
+                      return Text(emoji, style: const TextStyle(fontSize: 96));
+                    }),
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                            color: Colors.black.withOpacity(.08), blurRadius: 8)
+                      ],
+                    ),
+                    child: Row(children: [
+                      const Icon(Icons.favorite, size: 16, color: Colors.pink),
+                      const SizedBox(width: 4),
+                      Text(health.toStringAsFixed(0),
+                          style: const TextStyle(fontWeight: FontWeight.w900)),
+                    ]),
+                  ),
+                ),
+              ]),
+            ),
+            const SizedBox(height: 6),
+            const Text('Giữ các chỉ số trong vùng vàng để cây khoẻ!',
+                style: TextStyle(color: Colors.black54),
+                textAlign: TextAlign.center),
+          ],
+        ),
+      ),
+    );
+  }
 
   String _imgForStage() {
     switch (stage) {
@@ -554,114 +646,15 @@ class _PlantCard extends StatelessWidget {
       case PlantStage.seedling:
         return '🌿 Cây con';
       case PlantStage.adult:
-        return '🌳 Trưởng thành';
+        return 'Trưởng thành';
       case PlantStage.flowering:
         return '🌸 Ra hoa';
     }
   }
-
-  @override
-  Widget build(BuildContext context) {
-    final healthColor = Color.lerp(
-      const Color(0xFFE53935),
-      const Color(0xFF2E7D32),
-      (health / 100.0).clamp(0, 1),
-    )!;
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(.9),
-        borderRadius: BorderRadius.circular(28),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(.08),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(_stageText(), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: 200,
-            height: 200,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                // halo theo health
-                Container(
-                  width: 170,
-                  height: 170,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: healthColor.withOpacity(.28),
-                        blurRadius: 24,
-                        spreadRadius: 4,
-                      ),
-                    ],
-                  ),
-                ),
-                // ảnh cây
-                Image.asset(
-                  _imgForStage(),
-                  fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) {
-                    final emoji = {
-                      PlantStage.seed: '🌱',
-                      PlantStage.seedling: '🌿',
-                      PlantStage.adult: '🌳',
-                      PlantStage.flowering: '🌸',
-                    }[stage]!;
-                    return Text(emoji, style: const TextStyle(fontSize: 96));
-                  },
-                ),
-                // health badge
-                Positioned(
-                  right: 0,
-                  top: 0,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(.08), blurRadius: 8)],
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.favorite, size: 16, color: Colors.pink),
-                        const SizedBox(width: 4),
-                        Text(health.toStringAsFixed(0),
-                            style: const TextStyle(fontWeight: FontWeight.w900)),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'Giữ các chỉ số trong vùng vàng để cây khoẻ!',
-            style: TextStyle(color: Colors.black54),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
 }
 
-// ===== UI phụ (giữ nguyên) =====
-
 class _TopInfoBar extends StatelessWidget {
-  final int dayIndex;
-  final int totalDays;
+  final int dayIndex, totalDays;
   final String timeText;
   final PlantStage stage;
   final double health;
@@ -677,20 +670,25 @@ class _TopInfoBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Row(
-        children: [
-          _chip(const Icon(Icons.calendar_month, size: 18), 'Ngày $dayIndex/$totalDays'),
-          const SizedBox(width: 8),
-          _chip(const Icon(Icons.timer, size: 18), timeText),
-          const SizedBox(width: 8),
-          _chip(const Icon(Icons.local_florist, size: 18), _stageName(stage)),
-          const Spacer(),
-          Row(children: [
-            const Icon(Icons.favorite, size: 18, color: Colors.pink),
-            const SizedBox(width: 4),
-            Text(health.toStringAsFixed(0), style: const TextStyle(fontWeight: FontWeight.bold)),
-          ]),
-        ],
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            _chip(const Icon(Icons.calendar_month, size: 18),
+                'Ngày $dayIndex/$totalDays'),
+            const SizedBox(width: 8),
+            _chip(const Icon(Icons.timer, size: 18), timeText),
+            const SizedBox(width: 8),
+            _chip(const Icon(Icons.local_florist, size: 18), _stageName(stage)),
+            const SizedBox(width: 24),
+            Row(children: [
+              const Icon(Icons.favorite, size: 18, color: Colors.pink),
+              const SizedBox(width: 4),
+              Text(health.toStringAsFixed(0),
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+            ]),
+          ],
+        ),
       ),
     );
   }
@@ -714,7 +712,9 @@ class _TopInfoBar extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 6)],
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 6)
+        ],
       ),
       child: Row(children: [icon, const SizedBox(width: 6), Text(text)]),
     );
@@ -728,14 +728,31 @@ class _RightStatsPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        GaugeRing(label: 'Nước', icon: const Icon(Icons.opacity), value: stats.water, band: bands[statWater]!),
-        GaugeRing(label: 'Ánh sáng', icon: const Icon(Icons.wb_sunny), value: stats.light, band: bands[statLight]!),
-        GaugeRing(label: 'Dinh dưỡng', icon: const Icon(Icons.grass), value: stats.nutrient, band: bands[statNutrient]!),
-        GaugeRing(label: 'Sạch/Bảo vệ', icon: const Icon(Icons.spa), value: stats.clean, band: bands[statClean]!),
-      ],
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          GaugeRing(
+              label: 'Nước',
+              icon: const Icon(Icons.opacity),
+              value: stats.water,
+              band: bands[statWater]!),
+          GaugeRing(
+              label: 'Ánh sáng',
+              icon: const Icon(Icons.wb_sunny),
+              value: stats.light,
+              band: bands[statLight]!),
+          GaugeRing(
+              label: 'Dinh dưỡng',
+              icon: const Icon(Icons.grass),
+              value: stats.nutrient,
+              band: bands[statNutrient]!),
+          GaugeRing(
+              label: 'Sạch/Bảo vệ',
+              icon: const Icon(Icons.spa),
+              value: stats.clean,
+              band: bands[statClean]!),
+        ],
+      ),
     );
   }
 }
@@ -752,23 +769,40 @@ class _ToolBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white,
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, -2))],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          if (tools.contains(ToolType.water))
-            ToolButton(icon: Icons.opacity, label: 'Tưới', onTap: () => onUse(ToolType.water)),
-          if (tools.contains(ToolType.light))
-            ToolButton(icon: Icons.wb_sunny, label: 'Ánh sáng', onTap: () => onUse(ToolType.light)),
-          if (tools.contains(ToolType.nutrient))
-            ToolButton(icon: Icons.grass, label: 'Bón phân', onTap: () => onUse(ToolType.nutrient)),
-          if (tools.contains(ToolType.pest))
-            ToolButton(icon: Icons.bug_report, label: 'Bắt sâu', onTap: () => onUse(ToolType.pest)),
-          if (tools.contains(ToolType.prune))
-            ToolButton(icon: Icons.content_cut, label: 'Tỉa', onTap: () => onUse(ToolType.prune)),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 8,
+              offset: const Offset(0, -2))
         ],
       ),
+      child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+        if (tools.contains(ToolType.water))
+          ToolButton(
+              icon: Icons.opacity,
+              label: 'Tưới',
+              onTap: () => onUse(ToolType.water)),
+        if (tools.contains(ToolType.light))
+          ToolButton(
+              icon: Icons.wb_sunny,
+              label: 'Ánh sáng',
+              onTap: () => onUse(ToolType.light)),
+        if (tools.contains(ToolType.nutrient))
+          ToolButton(
+              icon: Icons.grass,
+              label: 'Bón phân',
+              onTap: () => onUse(ToolType.nutrient)),
+        if (tools.contains(ToolType.pest))
+          ToolButton(
+              icon: Icons.bug_report,
+              label: 'Bắt sâu',
+              onTap: () => onUse(ToolType.pest)),
+        if (tools.contains(ToolType.prune))
+          ToolButton(
+              icon: Icons.content_cut,
+              label: 'Tỉa',
+              onTap: () => onUse(ToolType.prune)),
+      ]),
     );
   }
 }
@@ -783,18 +817,22 @@ class _DaySummaryDialog extends StatelessWidget {
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: const Text('Tổng kết ngày'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(3, (i) => Icon(i < stars ? Icons.star : Icons.star_border, size: 28, color: Colors.amber)),
-          ),
-          const SizedBox(height: 12),
-          Text('Giai đoạn hiện tại: ${_stageName(stage)}'),
-        ],
-      ),
-      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Tiếp tục'))],
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(
+              3,
+                  (i) => Icon(i < stars ? Icons.star : Icons.star_border,
+                  size: 28, color: Colors.amber)),
+        ),
+        const SizedBox(height: 12),
+        Text('Giai đoạn hiện tại: ${_stageName(stage)}'),
+      ]),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Tiếp tục'))
+      ],
     );
   }
 

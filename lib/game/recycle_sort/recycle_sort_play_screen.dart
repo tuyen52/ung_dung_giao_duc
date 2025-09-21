@@ -9,21 +9,19 @@ import 'package:mobileapp/game/recycle_sort/data/trash_data.dart';
 // ENUMS and CLASSES for TrashData
 enum TrashType { organic, inorganic }
 
-// --- CẬP NHẬT LỚP TRASHITEM ---
 class TrashItem {
   final String id;
   final String name;
-  final String imagePath; // Đổi từ emoji
+  final String imagePath;
   final TrashType type;
 
-  const TrashItem(this.id, this.name, this.imagePath, this.type); // Sửa constructor
+  const TrashItem(this.id, this.name, this.imagePath, this.type);
 }
 
 // MAIN PLAY SCREEN WIDGET
 class RecycleSortPlayScreen extends StatefulWidget {
   final Game game;
   final FinishCallback onFinish;
-
   final Future<void> Function({
   required List<String> deck,
   required int index,
@@ -31,15 +29,12 @@ class RecycleSortPlayScreen extends StatefulWidget {
   required int wrong,
   required int timeLeft,
   }) onSaveProgress;
-
   final Future<void> Function() onClearProgress;
-
   final List<String>? initialDeck;
   final int? initialIndex;
   final int? initialCorrect;
   final int? initialWrong;
   final int? initialTimeLeft;
-
   final bool isPaused;
 
   const RecycleSortPlayScreen({
@@ -62,16 +57,13 @@ class RecycleSortPlayScreen extends StatefulWidget {
 
 class RecycleSortPlayScreenState extends State<RecycleSortPlayScreen> {
   static const int _totalRounds = 10;
-
   late List<TrashItem> _deck;
   int _index = 0;
   int _correct = 0;
   int _wrong = 0;
-
   int _timeLeft = 0;
   Timer? _ticker;
   bool _ignoreActions = false;
-
   bool _showCorrectOverlay = false;
   bool _showWrongOverlay = false;
 
@@ -143,7 +135,6 @@ class RecycleSortPlayScreenState extends State<RecycleSortPlayScreen> {
       wrong: _wrong,
       timeLeft: _timeLeft,
     );
-
     if (!mounted) return;
     Navigator.pushNamedAndRemoveUntil(context, '/shell', (_) => false);
   }
@@ -157,7 +148,6 @@ class RecycleSortPlayScreenState extends State<RecycleSortPlayScreen> {
 
   void _handleAnswer(TrashType dropTo) {
     if (_ignoreActions) return;
-
     final item = _deck[_index];
     final isRight = (item.type == dropTo);
 
@@ -210,7 +200,6 @@ class RecycleSortPlayScreenState extends State<RecycleSortPlayScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    // Lấy hướng màn hình hiện tại
     final orientation = MediaQuery.of(context).orientation;
 
     return Scaffold(
@@ -228,7 +217,6 @@ class RecycleSortPlayScreenState extends State<RecycleSortPlayScreen> {
             ),
           ),
           SafeArea(
-            // Chọn layout dựa trên hướng màn hình
             child: orientation == Orientation.portrait
                 ? _buildPortraitLayout()
                 : _buildLandscapeLayout(),
@@ -242,49 +230,78 @@ class RecycleSortPlayScreenState extends State<RecycleSortPlayScreen> {
     );
   }
 
-  // ================== BỐ CỤC MÀN HÌNH DỌC ==================
   Widget _buildPortraitLayout() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _buildInfoChips(),
-        const SizedBox(height: 12),
-        _instructionLabel(),
-        Expanded(
-          child: _buildDraggableTrashItem(),
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final binSize = screenWidth * 0.3;
+    final itemImageSize = screenWidth * 0.2;
+
+    // CẬP NHẬT: Bọc toàn bộ Column trong SingleChildScrollView
+    return SingleChildScrollView(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          // Đảm bảo Column cao ít nhất bằng chiều cao màn hình
+          minHeight: screenHeight - MediaQuery.of(context).padding.top,
         ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              _BinTarget(
-                key: _organicBinKey,
-                type: TrashType.organic,
-                label: 'Hữu cơ',
-                onAccept: () =>
-                !widget.isPaused ? _handleAnswer(TrashType.organic) : null,
-              ),
-              _BinTarget(
-                key: _inorganicBinKey,
-                type: TrashType.inorganic,
-                label: 'Vô cơ',
-                onAccept: () => !widget.isPaused
-                    ? _handleAnswer(TrashType.inorganic)
-                    : null,
-              ),
-            ],
-          ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            // Nhóm các widget không co giãn vào một Column
+            Column(
+              children: [
+                _buildInfoChips(),
+                const SizedBox(height: 12),
+                _instructionLabel(),
+              ],
+            ),
+            // Widget co giãn ở giữa
+            SizedBox(
+              height: itemImageSize * 2, // Dành không gian đủ lớn cho item
+              child: _buildDraggableTrashItem(itemImageSize),
+            ),
+            // Nhóm các widget dưới cùng
+            Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      _BinTarget(
+                        key: _organicBinKey,
+                        type: TrashType.organic,
+                        label: 'Hữu cơ',
+                        onAccept: () => !widget.isPaused ? _handleAnswer(TrashType.organic) : null,
+                        size: binSize,
+                      ),
+                      _BinTarget(
+                        key: _inorganicBinKey,
+                        type: TrashType.inorganic,
+                        label: 'Vô cơ',
+                        onAccept: () => !widget.isPaused ? _handleAnswer(TrashType.inorganic) : null,
+                        size: binSize,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                _buildControlButtons(),
+              ],
+            ),
+          ],
         ),
-        const SizedBox(height: 24),
-        _buildControlButtons(),
-      ],
+      ),
     );
   }
 
-  // ================== BỐ CỤC MÀN HÌNH NGANG ==================
+
   Widget _buildLandscapeLayout() {
+    final screenHeight = MediaQuery.of(context).size.height;
+    final binSize = screenHeight * 0.45;
+    final itemImageSize = screenHeight * 0.25;
+
     return Column(
       children: [
         _buildInfoChips(),
@@ -299,6 +316,7 @@ class RecycleSortPlayScreenState extends State<RecycleSortPlayScreen> {
                 label: 'Hữu cơ',
                 onAccept: () =>
                 !widget.isPaused ? _handleAnswer(TrashType.organic) : null,
+                size: binSize,
               ),
               Expanded(
                 child: Column(
@@ -306,7 +324,7 @@ class RecycleSortPlayScreenState extends State<RecycleSortPlayScreen> {
                   children: [
                     _instructionLabel(),
                     const SizedBox(height: 8),
-                    Expanded(child: _buildDraggableTrashItem()),
+                    Expanded(child: _buildDraggableTrashItem(itemImageSize)),
                   ],
                 ),
               ),
@@ -317,6 +335,7 @@ class RecycleSortPlayScreenState extends State<RecycleSortPlayScreen> {
                 onAccept: () => !widget.isPaused
                     ? _handleAnswer(TrashType.inorganic)
                     : null,
+                size: binSize,
               ),
             ],
           ),
@@ -325,8 +344,6 @@ class RecycleSortPlayScreenState extends State<RecycleSortPlayScreen> {
       ],
     );
   }
-
-  // ================== WIDGET CON ==================
 
   Widget _instructionLabel() {
     return Padding(
@@ -362,7 +379,10 @@ class RecycleSortPlayScreenState extends State<RecycleSortPlayScreen> {
                   letterSpacing: .2,
                   color: Colors.white,
                   shadows: [
-                    Shadow(blurRadius: 3, color: Colors.black87, offset: Offset(0, 1)),
+                    Shadow(
+                        blurRadius: 3,
+                        color: Colors.black87,
+                        offset: Offset(0, 1)),
                   ],
                 ),
               ),
@@ -404,7 +424,7 @@ class RecycleSortPlayScreenState extends State<RecycleSortPlayScreen> {
     );
   }
 
-  Widget _buildDraggableTrashItem() {
+  Widget _buildDraggableTrashItem(double imageSize) {
     final item = _deck[_index];
     return Center(
       child: IgnorePointer(
@@ -413,10 +433,11 @@ class RecycleSortPlayScreenState extends State<RecycleSortPlayScreen> {
           data: item,
           feedback: Transform.scale(
             scale: 1.15,
-            child: _trashCard(item, dragging: true),
+            child: _trashCard(item, imageSize, dragging: true),
           ),
-          childWhenDragging: Opacity(opacity: .35, child: _trashCard(item)),
-          child: _trashCard(item),
+          childWhenDragging:
+          Opacity(opacity: .35, child: _trashCard(item, imageSize)),
+          child: _trashCard(item, imageSize),
         ),
       ),
     );
@@ -450,7 +471,6 @@ class RecycleSortPlayScreenState extends State<RecycleSortPlayScreen> {
     );
   }
 
-  // ======= CHIP MỚI: TƯƠNG PHẢN CAO, NỀN TỐI, ICON MÀU =======
   Widget _chip({
     required IconData icon,
     required String label,
@@ -474,10 +494,9 @@ class RecycleSortPlayScreenState extends State<RecycleSortPlayScreen> {
           Container(
             width: 24,
             height: 24,
-            decoration:
-            BoxDecoration(color: color, shape: BoxShape.circle),
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
             alignment: Alignment.center,
-            child: const Icon(Icons.circle, size: 0), // giữ hình tròn phẳng
+            child: const Icon(Icons.circle, size: 0),
           ),
           const SizedBox(width: 8),
           Icon(icon, size: 16, color: Colors.white),
@@ -501,64 +520,69 @@ class RecycleSortPlayScreenState extends State<RecycleSortPlayScreen> {
         ]),
       );
 
-  // ======= THẺ VẬT PHẨM: TÊN CÓ "PILL" TỐI CHỮ TRẮNG =======
-  Widget _trashCard(TrashItem item, {bool dragging = false}) => Card(
-    color: Colors.transparent,
-    elevation: 0,
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 22),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Image.asset(
-          item.imagePath,
-          width: 72,
-          height: 72,
-          fit: BoxFit.contain,
-        ),
-        const SizedBox(height: 10),
-        Container(
-          padding:
-          const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.6),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withOpacity(0.35)),
-          ),
-          child: Text(
-            item.name,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              color: Colors.white,
-              shadows: [
-                Shadow(
-                  blurRadius: 3,
-                  color: Colors.black87,
-                  offset: Offset(0, 1),
-                ),
-              ],
+  Widget _trashCard(TrashItem item, double imageSize, {bool dragging = false}) =>
+      Card(
+        color: Colors.transparent,
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 22),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Image.asset(
+              item.imagePath,
+              width: imageSize,
+              height: imageSize,
+              fit: BoxFit.contain,
             ),
-          ),
+            const SizedBox(height: 10),
+            Container(
+              padding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.6),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withOpacity(0.35)),
+              ),
+              child: Text(
+                item.name,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                  shadows: [
+                    Shadow(
+                      blurRadius: 3,
+                      color: Colors.black87,
+                      offset: Offset(0, 1),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ]),
         ),
-      ]),
-    ),
-  );
+      );
 }
 
-// ================== _BinTarget WIDGET ==================
 class _BinTarget extends StatefulWidget {
   final TrashType type;
   final String label;
   final VoidCallback? onAccept;
+  final double size;
 
   const _BinTarget(
-      {super.key, required this.type, required this.label, this.onAccept});
+      {super.key,
+        required this.type,
+        required this.label,
+        this.onAccept,
+        required this.size});
 
   @override
   State<_BinTarget> createState() => _BinTargetState();
 }
 
-class _BinTargetState extends State<_BinTarget> with TickerProviderStateMixin {
+class _BinTargetState extends State<_BinTarget>
+    with TickerProviderStateMixin {
   bool _hovering = false;
   late final AnimationController _successController;
   late final AnimationController _failController;
@@ -596,7 +620,8 @@ class _BinTargetState extends State<_BinTarget> with TickerProviderStateMixin {
   }
 
   String _getImagePath() {
-    final binType = widget.type == TrashType.organic ? 'organic' : 'inorganic';
+    final binType =
+    widget.type == TrashType.organic ? 'organic' : 'inorganic';
     if (_successController.isAnimating) {
       return 'assets/images/environment/bin_${binType}_full.png';
     }
@@ -634,7 +659,9 @@ class _BinTargetState extends State<_BinTarget> with TickerProviderStateMixin {
             duration: const Duration(milliseconds: 200),
             padding: EdgeInsets.all(_hovering ? 4 : 8),
             decoration: BoxDecoration(
-              color: _hovering ? Colors.white.withOpacity(0.18) : Colors.transparent,
+              color: _hovering
+                  ? Colors.white.withOpacity(0.18)
+                  : Colors.transparent,
               shape: BoxShape.circle,
             ),
             child: Column(
@@ -642,8 +669,8 @@ class _BinTargetState extends State<_BinTarget> with TickerProviderStateMixin {
               children: [
                 Image.asset(
                   _getImagePath(),
-                  height: 120,
-                  width: 120,
+                  height: widget.size,
+                  width: widget.size,
                 ),
                 const SizedBox(height: 8),
                 Container(
@@ -687,7 +714,6 @@ class _BinTargetState extends State<_BinTarget> with TickerProviderStateMixin {
   }
 }
 
-// ================== FEEDBACK OVERLAY (Giữ nguyên) ==================
 class _FeedbackOverlay extends StatefulWidget {
   final bool isCorrect;
   const _FeedbackOverlay({required this.isCorrect});
@@ -705,15 +731,16 @@ class _FeedbackOverlayState extends State<_FeedbackOverlay>
   @override
   void initState() {
     super.initState();
-    _controller =
-    AnimationController(vsync: this, duration: const Duration(milliseconds: 600))
+    _controller = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 600))
       ..forward();
 
-    _scaleAnimation = Tween<double>(begin: 0.5, end: 1.2)
-        .animate(CurvedAnimation(parent: _controller, curve: Curves.elasticOut));
-    _fadeAnimation = Tween<double>(begin: 1.0, end: 0.0).animate(CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.7, 1.0, curve: Curves.easeIn)));
+    _scaleAnimation = Tween<double>(begin: 0.5, end: 1.2).animate(
+        CurvedAnimation(parent: _controller, curve: Curves.elasticOut));
+    _fadeAnimation = Tween<double>(begin: 1.0, end: 0.0).animate(
+        CurvedAnimation(
+            parent: _controller,
+            curve: const Interval(0.7, 1.0, curve: Curves.easeIn)));
   }
 
   @override
@@ -731,8 +758,10 @@ class _FeedbackOverlayState extends State<_FeedbackOverlay>
           child: ScaleTransition(
             scale: _scaleAnimation,
             child: widget.isCorrect
-                ? const Icon(Icons.star_rounded, color: Colors.amber, size: 150)
-                : const Icon(Icons.cancel_rounded, color: Colors.red, size: 150),
+                ? const Icon(Icons.star_rounded,
+                color: Colors.amber, size: 150)
+                : const Icon(Icons.cancel_rounded,
+                color: Colors.red, size: 150),
           ),
         ),
       ),

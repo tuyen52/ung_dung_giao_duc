@@ -168,6 +168,9 @@ class _PlantCareGameLauncherState extends State<PlantCareGameLauncher> {
       onFinishAndExit: () => (_playKey.currentState as dynamic?)?.finishGame(),
       onSaveAndExit: () => (_playKey.currentState as dynamic?)?.outToHome(),
 
+      // ✅ KẾT NỐI SỰ KIỆN onRestart TẠI ĐÂY
+      onRestart: () => (_playKey.currentState as dynamic?)?.restartGame(),
+
       builder: (context, bool isPaused) {
         return PlantCarePlayScreen(
           key: _playKey,
@@ -209,17 +212,11 @@ class _PlantHelpSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Sử dụng Media query để lấy kích thước màn hình
-    final screenHeight = MediaQuery.of(context).size.height;
-    final screenWidth = MediaQuery.of(context).size.width;
+    // Định nghĩa các kiểu chữ với kích thước cố định, tương tự file tham khảo
+    const double baseFontSize = 15.0; // Cỡ chữ cơ bản
+    const double headingFontSize = 17.0; // Cỡ chữ cho tiêu đề mục
+    const double titleFontSize = 19.0;   // Cỡ chữ cho tiêu đề chính
 
-    // Điều chỉnh kích thước phông chữ dựa trên kích thước màn hình
-    // Đây là các giá trị tương đối, bạn có thể điều chỉnh thêm để phù hợp nhất
-    final baseFontSize = screenWidth * 0.04; // Ví dụ: 4% chiều rộng màn hình cho văn bản thường
-    final headingFontSize = screenWidth * 0.05; // 5% chiều rộng màn hình cho tiêu đề nhỏ
-    final titleFontSize = screenWidth * 0.06; // 6% chiều rộng màn hình cho tiêu đề chính
-
-    // Định nghĩa các kiểu chữ với kích thước mới
     final titleStyle = TextStyle(
       fontSize: titleFontSize,
       fontWeight: FontWeight.bold,
@@ -231,13 +228,11 @@ class _PlantHelpSheet extends StatelessWidget {
     );
     final bodyStyle = TextStyle(
       fontSize: baseFontSize,
-      height: 1.5, // Giữ khoảng cách dòng để dễ đọc hơn
+      height: 1.5,
     );
     final boldBodyStyle = bodyStyle.copyWith(fontWeight: FontWeight.bold);
     final italicBodyStyle = bodyStyle.copyWith(fontStyle: FontStyle.italic);
 
-
-    // Widget trợ giúp để tạo văn bản có chữ đậm/thường
     Widget buildRichText(List<TextSpan> spans) {
       return RichText(
         text: TextSpan(
@@ -262,13 +257,12 @@ class _PlantHelpSheet extends StatelessWidget {
               Center(
                 child: Text(
                   'Chào mừng bạn nhỏ! Cùng giúp một hạt mầm lớn thật nhanh và ra hoa rực rỡ nhé!',
-                  style: italicBodyStyle, // Sử dụng kiểu italicBodyStyle
+                  style: italicBodyStyle,
                   textAlign: TextAlign.center,
                 ),
               ),
               const SizedBox(height: 24),
 
-              // --- Mục 1 ---
               Text('1. Làm sao để cây luôn VUI VẺ? ❤️', style: headingStyle),
               const SizedBox(height: 8),
               buildRichText([
@@ -287,7 +281,6 @@ class _PlantHelpSheet extends StatelessWidget {
               ]),
               const SizedBox(height: 24),
 
-              // --- Mục 2 ---
               Text('2. Phải làm gì để chăm cây?', style: headingStyle),
               const SizedBox(height: 8),
               buildRichText([
@@ -304,7 +297,6 @@ class _PlantHelpSheet extends StatelessWidget {
               ]),
               const SizedBox(height: 24),
 
-              // --- Mục 3 ---
               Text('3. Phần thưởng lấp lánh!', style: headingStyle),
               const SizedBox(height: 8),
               buildRichText([
@@ -315,7 +307,7 @@ class _PlantHelpSheet extends StatelessWidget {
                 const TextSpan(text: 'lấp lánh.\n'),
                 const TextSpan(text: '• Càng nhiều sao, điểm của bạn sẽ càng cao!'),
               ]),
-              const SizedBox(height: 24), // Thêm khoảng trống dưới cùng cho nút "Đã hiểu" (nếu có)
+              const SizedBox(height: 24),
             ],
           ),
         ),

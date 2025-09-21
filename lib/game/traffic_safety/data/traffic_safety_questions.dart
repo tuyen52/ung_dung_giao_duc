@@ -58,4 +58,57 @@ const List<Question> trafficSafetyQuestionsPool = [
     correctAnswerIndices: [0], // Đáp án đúng là lựa chọn đầu tiên
     type: QuestionType.imageSelection,
   ),
+  Question(
+    id: 'q7_helmet',
+    situation: 'Khi ngồi trên xe máy, em phải làm gì để bảo vệ đầu?',
+    icon: '🏍️',
+    options: ['Đội mũ lưỡi trai', 'Không cần đội gì', 'Đội mũ bảo hiểm và cài quai đúng cách', 'Đội mũ len'],
+    correctAnswerIndices: [2],
+    type: QuestionType.multipleChoice,
+  ),
+  Question(
+    id: 'q8_play_area',
+    situation: 'Đâu là nơi an toàn để em vui chơi?',
+    icon: '⚽',
+    options: ['Dưới lòng đường', 'Trên vỉa hè gần đường', 'Trong sân chơi hoặc công viên', 'Ở bãi đỗ xe'],
+    correctAnswerIndices: [2],
+    type: QuestionType.multipleChoice,
+  ),
+  Question(
+    id: 'q9_bus_stop',
+    situation: 'Khi đợi xe buýt, em nên đứng ở đâu?',
+    icon: '🚏',
+    options: ['Đứng dưới lòng đường để vẫy xe', 'Đứng trật tự trên vỉa hè tại điểm chờ', 'Chạy nhảy lung tung', 'Đứng sau xe buýt'],
+    correctAnswerIndices: [1],
+    type: QuestionType.multipleChoice,
+  ),
+  Question(
+    id: 'q10_night_walk',
+    situation: 'Khi đi bộ vào buổi tối, em nên mặc quần áo màu gì để người khác dễ nhìn thấy?',
+    icon: '🌙',
+    options: ['Màu tối như đen, xanh đậm', 'Màu sáng hoặc có phản quang', 'Màu gì cũng được', 'Mặc đồ có kim tuyến'],
+    correctAnswerIndices: [1],
+    type: QuestionType.multipleChoice,
+  ),
+  Question(
+    id: 'q11_animal_road',
+    situation: 'Nếu thấy động vật trên đường, em nên làm gì?',
+    icon: '🐕',
+    options: ['Lại gần trêu chọc', 'Báo cho người lớn và đi chậm lại', 'Bóp còi inh ỏi', 'Cố gắng đuổi nó đi'],
+    correctAnswerIndices: [1],
+    type: QuestionType.multipleChoice,
+  ),
+  Question(
+    id: 'q12_bus_boarding', // id mới, duy nhất
+    situation: 'Sắp xếp các bước lên xe buýt của trường một cách an toàn:',
+    icon: '🚌',
+    options: [
+      'Bước lên xe và tìm chỗ ngồi',       // index 0
+      'Chờ xe buýt dừng hẳn',             // index 1
+      'Xếp hàng trật tự, không xô đẩy',    // index 2
+      'Đứng cách lề đường 3 bước chân', // index 3
+    ],
+    correctAnswerIndices: [3, 1, 2, 0],
+    type: QuestionType.sorting,
+  ),
 ];

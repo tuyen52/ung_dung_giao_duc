@@ -108,6 +108,28 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
     if (!mounted) return;
     Navigator.pushNamedAndRemoveUntil(context, '/shell', (_) => false);
   }
+
+  // ✅ HÀM MỚI ĐỂ CHƠI LẠI
+  Future<void> restartGame() async {
+    _ticker?.cancel(); // Dừng ticker hiện tại
+    await widget.onClearProgress(); // Xóa tiến trình đã lưu
+
+    if (!mounted) return;
+
+    // Reset lại trạng thái game về ban đầu
+    setState(() {
+      _state = PlantState(
+        difficultyLevel: widget.difficulty,
+        totalDays: widget.totalDays,
+        dayLengthSec: widget.dayLengthSec,
+      );
+      _sumStars = 0;
+      _finishNotified = false;
+      _accum = 0.0;
+    });
+
+    _startTicker(); // Bắt đầu lại ticker mới
+  }
   // =======================================================
 
   @override

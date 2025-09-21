@@ -7,7 +7,12 @@ const List<Question> swimmingSafetyQuestionsPool = [
     id: 'q1',
     situation: 'Trước khi xuống hồ bơi, em nên làm gì đầu tiên?',
     icon: '🚿',
-    options: ['Ăn thật no', 'Tắm tráng, làm sạch cơ thể', 'Chạy nhảy quanh hồ'],
+    options: [
+      'Ăn thật no',
+      'Tắm tráng, làm sạch cơ thể',
+      'Chạy nhảy quanh hồ',
+      'Khởi động trên bờ'
+    ],
     correctAnswerIndices: [1],
     type: QuestionType.multipleChoice,
   ),
@@ -15,7 +20,12 @@ const List<Question> swimmingSafetyQuestionsPool = [
     id: 'q2',
     situation: 'Khi đang bơi mà cảm thấy mệt hoặc bị chuột rút, em nên làm gì?',
     icon: '🆘',
-    options: ['Cố bơi thật nhanh vào bờ', 'Bình tĩnh, gọi người lớn giúp đỡ', 'Tiếp tục bơi'],
+    options: [
+      'Cố bơi thật nhanh vào bờ',
+      'Bình tĩnh, gọi người lớn giúp đỡ',
+      'Tiếp tục bơi',
+      'Nằm ngửa thả nổi và thư giãn'
+    ],
     correctAnswerIndices: [1],
     type: QuestionType.multipleChoice,
   ),
@@ -23,7 +33,12 @@ const List<Question> swimmingSafetyQuestionsPool = [
     id: 'q3',
     situation: 'Em không nên đi bơi ở đâu khi không có người lớn đi cùng?',
     icon: '🚫',
-    options: ['Hồ bơi công cộng', 'Sông, hồ, biển', 'Bể bơi phao ở nhà'],
+    options: [
+      'Hồ bơi công cộng',
+      'Sông, hồ, biển',
+      'Bể bơi phao ở nhà',
+      'Bể bơi của trường học'
+    ],
     correctAnswerIndices: [1],
     type: QuestionType.multipleChoice,
   ),
@@ -40,21 +55,29 @@ const List<Question> swimmingSafetyQuestionsPool = [
     correctAnswerIndices: [0],
     type: QuestionType.imageSelection,
   ),
-  // Bắt đầu 9 câu hỏi mới
   Question(
     id: 'q5',
     situation: 'Nếu thấy bạn bị đuối nước, em sẽ làm gì?',
     icon: '😱',
-    options: ['Nhảy xuống cứu bạn', 'La to và gọi người lớn giúp đỡ', 'Lờ đi và bơi ra chỗ khác'],
+    options: [
+      'Nhảy xuống cứu bạn',
+      'La to và gọi người lớn giúp đỡ',
+      'Lờ đi và bơi ra chỗ khác',
+      'Tìm phao ném cho bạn'
+    ],
     correctAnswerIndices: [1],
     type: QuestionType.multipleChoice,
   ),
-
   Question(
     id: 'q6',
     situation: 'Vì sao em không được chạy nhảy ở khu vực quanh hồ bơi?',
     icon: '🏃‍♂️',
-    options: ['Vì sẽ làm người khác chú ý', 'Vì sàn ướt, dễ bị trơn trượt và ngã', 'Vì sẽ làm bắn nước vào người khác'],
+    options: [
+      'Vì sẽ làm người khác chú ý',
+      'Vì sàn ướt, dễ bị trơn trượt và ngã',
+      'Vì sẽ làm bắn nước vào người khác',
+      'Vì chú cứu hộ sẽ la mắng'
+    ],
     correctAnswerIndices: [1],
     type: QuestionType.multipleChoice,
   ),
@@ -62,7 +85,12 @@ const List<Question> swimmingSafetyQuestionsPool = [
     id: 'q7',
     situation: 'Em nên bơi ở khu vực nào của hồ bơi?',
     icon: '📏',
-    options: ['Khu vực nước sâu nhất', 'Khu vực dành cho trẻ em, có mực nước phù hợp', 'Bất cứ đâu em thích'],
+    options: [
+      'Khu vực nước sâu nhất',
+      'Khu vực có mực nước phù hợp với chiều cao',
+      'Bất cứ đâu em thích',
+      'Khu vực gần cầu nhảy'
+    ],
     correctAnswerIndices: [1],
     type: QuestionType.multipleChoice,
   ),
@@ -70,7 +98,12 @@ const List<Question> swimmingSafetyQuestionsPool = [
     id: 'q8',
     situation: 'Khi bơi ngoài trời nắng, em nên làm gì để bảo vệ da?',
     icon: '☀️',
-    options: ['Bôi kem chống nắng', 'Mặc áo khoác dày', 'Không cần làm gì cả'],
+    options: [
+      'Bôi kem chống nắng',
+      'Mặc áo khoác dày',
+      'Không cần làm gì cả',
+      'Chỉ bơi vào lúc giữa trưa'
+    ],
     correctAnswerIndices: [0],
     type: QuestionType.multipleChoice,
   ),
@@ -78,7 +111,12 @@ const List<Question> swimmingSafetyQuestionsPool = [
     id: 'q9',
     situation: 'Tại sao em không nên xô đẩy, đùa nghịch mạnh với bạn ở gần hồ bơi?',
     icon: '🤝',
-    options: ['Vì bạn có thể ngã xuống hồ rất nguy hiểm', 'Vì làm vậy rất vui', 'Vì sẽ bị bố mẹ mắng'],
+    options: [
+      'Vì bạn có thể ngã xuống hồ rất nguy hiểm',
+      'Vì làm vậy rất vui',
+      'Vì sẽ bị bố mẹ mắng',
+      'Vì sẽ làm hỏng đồ bơi của bạn'
+    ],
     correctAnswerIndices: [0],
     type: QuestionType.multipleChoice,
   ),
@@ -86,7 +124,12 @@ const List<Question> swimmingSafetyQuestionsPool = [
     id: 'q10',
     situation: 'Nếu trời nổi giông bão, sấm sét khi đang bơi, em nên làm gì?',
     icon: '⛈️',
-    options: ['Cố bơi thêm một chút', 'Nhanh chóng lên bờ và vào nơi trú ẩn an toàn', 'Đứng dưới gốc cây to gần đó'],
+    options: [
+      'Cố bơi thêm một chút',
+      'Nhanh chóng lên bờ và vào nơi trú ẩn an toàn',
+      'Đứng dưới gốc cây to gần đó',
+      'Lặn sâu xuống nước để tránh sét'
+    ],
     correctAnswerIndices: [1],
     type: QuestionType.multipleChoice,
   ),
@@ -94,7 +137,12 @@ const List<Question> swimmingSafetyQuestionsPool = [
     id: 'q13',
     situation: 'Khi ở hồ bơi, em phải luôn lắng nghe ai nhất?',
     icon: '👨‍🏫',
-    options: ['Bạn bè rủ rê', 'Bố mẹ, thầy cô hoặc chú cứu hộ', 'Tự ý làm điều mình thích'],
+    options: [
+      'Bạn bè rủ rê',
+      'Bố mẹ, thầy cô hoặc chú cứu hộ',
+      'Tự ý làm điều mình thích',
+      'Những người bơi giỏi hơn'
+    ],
     correctAnswerIndices: [1],
     type: QuestionType.multipleChoice,
   ),

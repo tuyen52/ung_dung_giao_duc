@@ -168,6 +168,9 @@ class _PlantCareGameLauncherState extends State<PlantCareGameLauncher> {
       onFinishAndExit: () => (_playKey.currentState as dynamic?)?.finishGame(),
       onSaveAndExit: () => (_playKey.currentState as dynamic?)?.outToHome(),
 
+      // ✅ KẾT NỐI SỰ KIỆN onRestart TẠI ĐÂY
+      onRestart: () => (_playKey.currentState as dynamic?)?.restartGame(),
+
       builder: (context, bool isPaused) {
         return PlantCarePlayScreen(
           key: _playKey,

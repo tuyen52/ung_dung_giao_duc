@@ -1,11 +1,14 @@
 // lib/game/swimming_safety/swimming_safety_play_screen.dart
 import 'dart:async';
 import 'dart:math';
+import 'dart:ui'; // BỔ SUNG: Cần cho hiệu ứng mờ (ImageFilter)
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // BỔ SUNG: Cần cho phản hồi rung (HapticFeedback)
 import 'package:mobileapp/game/core/game.dart';
 import 'package:mobileapp/game/core/types.dart';
 import 'package:mobileapp/game/swimming_safety/data/swimming_safety_questions.dart';
 
+// Lớp Question và Enum QuestionType không đổi
 enum QuestionType { multipleChoice, sorting, imageSelection }
 
 class Question {
@@ -27,6 +30,7 @@ class Question {
     required this.type,
   });
 }
+
 
 class SwimmingSafetyPlayScreen extends StatefulWidget {
   final Game game;
@@ -64,7 +68,9 @@ class SwimmingSafetyPlayScreen extends StatefulWidget {
   State<SwimmingSafetyPlayScreen> createState() => SwimmingSafetyPlayScreenState();
 }
 
-class SwimmingSafetyPlayScreenState extends State<SwimmingSafetyPlayScreen> {
+// THAY ĐỔI: Thêm "with TickerProviderStateMixin" để hỗ trợ animations
+class SwimmingSafetyPlayScreenState extends State<SwimmingSafetyPlayScreen>
+    with TickerProviderStateMixin {
   static const int _totalRounds = 10;
   late List<Question> _deck;
   int _index = 0;
@@ -78,16 +84,75 @@ class SwimmingSafetyPlayScreenState extends State<SwimmingSafetyPlayScreen> {
   bool _flashCorrect = false;
   bool _flashWrong = false;
 
+  // BỔ SUNG: Toàn bộ hệ thống Animation Controllers
+  late AnimationController _scaleController;
+  late AnimationController _slideController;
+  late AnimationController _pulseController;
+  late Animation<double> _scaleAnimation;
+  late Animation<Offset> _slideAnimation;
+  late Animation<double> _pulseAnimation;
+
+  // BỔ SUNG: Bảng màu tùy chỉnh để nhất quán với thiết kế mới
+  static const Color primaryBlue = Color(0xFF2E7CD6);
+  static const Color secondaryPurple = Color(0xFF8B5CF6);
+  static const Color accentGreen = Color(0xFF10B981);
+  static const Color warningOrange = Color(0xFFF59E0B);
+  static const Color dangerRed = Color(0xFFEF4444);
+  static const Color surfaceColor = Color(0xFF1E293B);
+
   @override
   void initState() {
     super.initState();
+    _initAnimations(); // BỔ SUNG: Khởi tạo animations
     _setupDeckAndState();
     _startTimer();
+  }
+
+  // BỔ SUNG: Phương thức khởi tạo tất cả animations
+  void _initAnimations() {
+    _scaleController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+    _slideController = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
+    );
+    _pulseController = AnimationController(
+      duration: const Duration(seconds: 2),
+      vsync: this,
+    )..repeat(reverse: true);
+
+    _scaleAnimation = CurvedAnimation(
+      parent: _scaleController,
+      curve: Curves.elasticOut,
+    );
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.1),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _slideController,
+      curve: Curves.easeOutCubic,
+    ));
+    _pulseAnimation = Tween<double>(
+      begin: 0.95,
+      end: 1.05,
+    ).animate(CurvedAnimation(
+      parent: _pulseController,
+      curve: Curves.easeInOut,
+    ));
+
+    _scaleController.forward();
+    _slideController.forward();
   }
 
   @override
   void dispose() {
     _ticker?.cancel();
+    // BỔ SUNG: Hủy các animation controllers
+    _scaleController.dispose();
+    _slideController.dispose();
+    _pulseController.dispose();
     super.dispose();
   }
 
@@ -153,19 +218,24 @@ class SwimmingSafetyPlayScreenState extends State<SwimmingSafetyPlayScreen> {
     widget.onFinish(_correct, _wrong);
   }
 
+  // THAY ĐỔI: Thêm HapticFeedback vào các hàm xử lý câu trả lời
   void _handleAnswer(int selectedIndex) {
     if (_selectedOption != null) return;
     final question = _deck[_index];
     final isRight = question.correctAnswerIndices.contains(selectedIndex);
+
+    HapticFeedback.lightImpact();
 
     setState(() {
       _selectedOption = selectedIndex;
       if (isRight) {
         _correct++;
         _flashCorrect = true;
+        HapticFeedback.heavyImpact();
       } else {
         _wrong++;
         _flashWrong = true;
+        HapticFeedback.mediumImpact();
       }
     });
 
@@ -184,16 +254,21 @@ class SwimmingSafetyPlayScreenState extends State<SwimmingSafetyPlayScreen> {
 
   void _handleSortingAnswer(List<int> sortedIndices) {
     final question = _deck[_index];
-    final isRight = sortedIndices.asMap().entries.every((entry) => entry.value == question.correctAnswerIndices[entry.key]);
+    final isRight = sortedIndices.asMap().entries.every((entry) =>
+    entry.value == question.correctAnswerIndices[entry.key]);
+
+    HapticFeedback.lightImpact();
 
     setState(() {
-      _selectedOption = 1; // Mark as answered
+      _selectedOption = 1;
       if (isRight) {
         _correct++;
         _flashCorrect = true;
+        HapticFeedback.heavyImpact();
       } else {
         _wrong++;
         _flashWrong = true;
+        HapticFeedback.mediumImpact();
       }
     });
 
@@ -215,14 +290,18 @@ class SwimmingSafetyPlayScreenState extends State<SwimmingSafetyPlayScreen> {
     final question = _deck[_index];
     final isRight = question.correctAnswerIndices.contains(selectedIndex);
 
+    HapticFeedback.lightImpact();
+
     setState(() {
       _selectedOption = selectedIndex;
       if (isRight) {
         _correct++;
         _flashCorrect = true;
+        HapticFeedback.heavyImpact();
       } else {
         _wrong++;
         _flashWrong = true;
+        HapticFeedback.mediumImpact();
       }
     });
 
@@ -239,6 +318,7 @@ class SwimmingSafetyPlayScreenState extends State<SwimmingSafetyPlayScreen> {
     });
   }
 
+  // THAY ĐỔI: Reset và chạy lại animation khi qua câu mới
   void _nextRound() {
     if (_index + 1 >= _deck.length) {
       _finish();
@@ -249,10 +329,17 @@ class SwimmingSafetyPlayScreenState extends State<SwimmingSafetyPlayScreen> {
         _sortedOptions = [];
         _selectedImages = [];
       });
+      _slideController.reset();
+      _slideController.forward();
+      _scaleController.reset();
+      _scaleController.forward();
     }
   }
 
-  void _skip() => _nextRound();
+  void _skip() {
+    HapticFeedback.selectionClick();
+    _nextRound();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -261,44 +348,84 @@ class SwimmingSafetyPlayScreenState extends State<SwimmingSafetyPlayScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
+    final orientation = MediaQuery.of(context).orientation;
+
+    // THAY ĐỔI LỚN: Cập nhật toàn bộ cấu trúc `build` để giống với giao diện giao thông
     return Scaffold(
       body: Stack(
         children: [
           Positioned.fill(
             child: Image.asset(
-              'assets/images/swimming/swimming_background.png',
+              'assets/images/swimming/swimming_background.png', // Thay đổi ảnh nền
               fit: BoxFit.cover,
             ),
           ),
           Positioned.fill(
-            child: Container(
-              color: Colors.black.withOpacity(0.1),
+            child: Container(color: Colors.black.withOpacity(0.08)),
+          ),
+          Positioned.fill(
+            child: CustomPaint(painter: PatternPainter()),
+          ),
+          Positioned.fill(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 2, sigmaY: 2),
+              child: Container(color: Colors.black.withOpacity(0.08)),
             ),
           ),
           SafeArea(
             child: Padding(
-              padding: const EdgeInsets.all(12.0),
+              padding: const EdgeInsets.all(16.0),
               child: IgnorePointer(
                 ignoring: widget.isPaused,
                 child: Stack(
                   children: [
                     AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      color: _flashCorrect ? Colors.green.withOpacity(.1) : _flashWrong ? Colors.red.withOpacity(.1) : Colors.transparent,
+                      duration: const Duration(milliseconds: 200),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(20),
+                        color: _flashCorrect
+                            ? accentGreen.withOpacity(.15)
+                            : _flashWrong
+                            ? dangerRed.withOpacity(.15)
+                            : Colors.transparent,
+                      ),
                     ),
-                    MediaQuery.of(context).orientation == Orientation.portrait
+                    orientation == Orientation.portrait
                         ? _buildPortraitLayout()
                         : _buildLandscapeLayout(),
                     if (_flashCorrect || _flashWrong)
                       Center(
-                        child: AnimatedScale(
-                          duration: const Duration(milliseconds: 150),
-                          scale: 1.0,
-                          child: Icon(
-                            _flashCorrect ? Icons.check_circle : Icons.cancel,
-                            size: 80,
-                            color: _flashCorrect ? Colors.green : Colors.red,
-                          ),
+                        child: TweenAnimationBuilder<double>(
+                          duration: const Duration(milliseconds: 300),
+                          tween: Tween(begin: 0, end: 1),
+                          builder: (context, value, child) {
+                            return Transform.scale(
+                              scale: value,
+                              child: Container(
+                                width: 120,
+                                height: 120,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: (_flashCorrect ? accentGreen : dangerRed)
+                                      .withOpacity(0.2),
+                                  border: Border.all(
+                                    color:
+                                    _flashCorrect ? accentGreen : dangerRed,
+                                    width: 3,
+                                  ),
+                                ),
+                                child: Icon(
+                                  _flashCorrect
+                                      ? Icons.check_rounded
+                                      : Icons.close_rounded,
+                                  size: 60,
+                                  color: _flashCorrect
+                                      ? accentGreen
+                                      : dangerRed,
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ),
                   ],
@@ -311,9 +438,8 @@ class SwimmingSafetyPlayScreenState extends State<SwimmingSafetyPlayScreen> {
     );
   }
 
-  // =================================================================== //
-  // ================= PHẦN BỔ SUNG BẮT ĐẦU TỪ ĐÂY ===================== //
-  // =================================================================== //
+  // BẮT ĐẦU CÁC PHƯƠNG THỨC BUILD WIDGET ĐƯỢC SAO CHÉP VÀ TINH CHỈNH
+  // TỪ `traffic_safety_play_screen.dart`
 
   Widget _buildPortraitLayout() {
     final question = _deck[_index];
@@ -321,8 +447,15 @@ class SwimmingSafetyPlayScreenState extends State<SwimmingSafetyPlayScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _buildInfoChips(),
-        const SizedBox(height: 12),
-        _buildQuestionCard(question),
+        const SizedBox(height: 16),
+        SlideTransition(
+          position: _slideAnimation,
+          child: ScaleTransition(
+            scale: _scaleAnimation,
+            child: _buildQuestionCard(question),
+          ),
+        ),
+        const SizedBox(height: 20),
         Expanded(
           flex: 3,
           child: _buildQuestionWidget(question),
@@ -337,7 +470,7 @@ class SwimmingSafetyPlayScreenState extends State<SwimmingSafetyPlayScreen> {
     return Column(
       children: [
         _buildInfoChips(),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         Expanded(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -345,10 +478,16 @@ class SwimmingSafetyPlayScreenState extends State<SwimmingSafetyPlayScreen> {
               Expanded(
                 flex: 2,
                 child: SingleChildScrollView(
-                  child: _buildQuestionCard(question),
+                  child: SlideTransition(
+                    position: _slideAnimation,
+                    child: ScaleTransition(
+                      scale: _scaleAnimation,
+                      child: _buildQuestionCard(question),
+                    ),
+                  ),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 16),
               Expanded(
                 flex: 3,
                 child: _buildQuestionWidget(question),
@@ -363,65 +502,196 @@ class SwimmingSafetyPlayScreenState extends State<SwimmingSafetyPlayScreen> {
 
   Widget _buildInfoChips() {
     final score = _correct * 20 - _wrong * 10;
-    final difficultyLabel = switch (widget.game.difficulty) { 1 => 'Dễ', 2 => 'Vừa', _ => 'Khó' };
+    final difficultyLabel = switch (widget.game.difficulty) {
+      1 => 'Dễ',
+      2 => 'Vừa',
+      _ => 'Khó'
+    };
+
     return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+      spacing: 10,
+      runSpacing: 10,
       alignment: WrapAlignment.center,
       children: [
-        _chip(
-          icon: Icons.timer,
+        _buildModernChip(
+          icon: Icons.timer_rounded,
           label: widget.isPaused ? 'TẠM DỪNG' : '$_timeLeft giây',
-          color: widget.isPaused ? Colors.orange : (_timeLeft <= 10 ? Colors.red : Colors.blue),
+          color: widget.isPaused
+              ? warningOrange
+              : (_timeLeft <= 10 ? dangerRed : primaryBlue),
+          isAnimated: !widget.isPaused && _timeLeft <= 10,
         ),
-        _chip(icon: Icons.pool, label: 'Kỹ năng', color: Colors.green),
-        _chip(icon: Icons.school, label: difficultyLabel, color: Colors.purple),
-        _chip(icon: Icons.flag, label: 'Câu: ${_index + 1}/$_totalRounds', color: Colors.teal),
-        _chip(icon: Icons.stars, label: 'Điểm: $score', color: Colors.orange),
+        _buildModernChip(
+          icon: Icons.pool_rounded, // THAY ĐỔI: Icon phù hợp chủ đề bơi lội
+          label: 'Kỹ năng', // THAY ĐỔI: Label phù hợp
+          color: accentGreen,
+        ),
+        _buildModernChip(
+          icon: Icons.school_rounded,
+          label: difficultyLabel,
+          color: secondaryPurple,
+        ),
+        _buildModernChip(
+          icon: Icons.flag_rounded,
+          label: 'Câu ${_index + 1}/$_totalRounds',
+          color: const Color(0xFF06B6D4),
+        ),
+        _buildModernChip(
+          icon: Icons.star_rounded,
+          label: '$score điểm',
+          color: warningOrange,
+        ),
       ],
     );
   }
 
+  Widget _buildModernChip({
+    required IconData icon,
+    required String label,
+    required Color color,
+    bool isAnimated = false,
+  }) {
+    Widget chip = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            color.withOpacity(0.3),
+            color.withOpacity(0.1),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.5), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: Colors.white),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (isAnimated) {
+      return AnimatedBuilder(
+        animation: _pulseAnimation,
+        builder: (context, child) {
+          return Transform.scale(
+            scale: _pulseAnimation.value,
+            child: chip,
+          );
+        },
+      );
+    }
+    return chip;
+  }
+
   Widget _buildQuestionCard(Question question) {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (question.imagePath != null)
-              Image.asset(
-                question.imagePath!,
-                height: 100,
-                fit: BoxFit.contain,
-              ),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white.withOpacity(0.95),
+            Colors.white.withOpacity(0.85),
+          ],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                if (question.icon != null)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8.0),
-                    child: Text(
-                      question.icon!,
-                      style: const TextStyle(fontSize: 32),
+                if (question.imagePath != null)
+                  Container(
+                    height: 100,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 10,
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Image.asset(
+                        question.imagePath!,
+                        fit: BoxFit.cover,
+                      ),
                     ),
                   ),
-                Expanded(
-                  child: Text(
-                    question.situation,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      height: 1.4,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    if (question.icon != null)
+                      Container(
+                        margin: const EdgeInsets.only(right: 12),
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            colors: [
+                              primaryBlue.withOpacity(0.2),
+                              secondaryPurple.withOpacity(0.2),
+                            ],
+                          ),
+                        ),
+                        child: Text(
+                          question.icon!,
+                          style: const TextStyle(fontSize: 28),
+                        ),
+                      ),
+                    Expanded(
+                      child: Text(
+                        question.situation,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          height: 1.4,
+                          color: Color(0xFF1E293B),
+                          letterSpacing: 0.3,
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -429,31 +699,24 @@ class SwimmingSafetyPlayScreenState extends State<SwimmingSafetyPlayScreen> {
 
   Widget _buildControlButtons() {
     return Padding(
-      padding: const EdgeInsets.only(top: 8.0),
+      padding: const EdgeInsets.only(top: 12.0),
       child: Row(
         children: [
           Expanded(
-            child: OutlinedButton(
+            child: _buildGlassButton(
               onPressed: (widget.isPaused || _selectedOption != null) ? null : _skip,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white,
-                side: const BorderSide(color: Colors.white70),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: const Text('Câu mới', style: TextStyle(fontSize: 14)),
+              icon: Icons.skip_next_rounded,
+              label: 'Bỏ qua',
+              isPrimary: false,
             ),
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: FilledButton.icon(
-              icon: const Icon(Icons.flag, size: 16),
-              label: const Text('Kết thúc', style: TextStyle(fontSize: 14)),
+            child: _buildGlassButton(
               onPressed: _finish,
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
+              icon: Icons.flag_rounded,
+              label: 'Kết thúc',
+              isPrimary: true,
             ),
           ),
         ],
@@ -461,6 +724,77 @@ class SwimmingSafetyPlayScreenState extends State<SwimmingSafetyPlayScreen> {
     );
   }
 
+  Widget _buildGlassButton({
+    required VoidCallback? onPressed,
+    required IconData icon,
+    required String label,
+    required bool isPrimary,
+  }) {
+    return Container(
+      height: 52,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        gradient: isPrimary
+            ? const LinearGradient(
+          colors: [primaryBlue, secondaryPurple],
+        )
+            : null,
+        border: isPrimary
+            ? null
+            : Border.all(color: Colors.white.withOpacity(0.3), width: 2),
+        boxShadow: isPrimary
+            ? [
+          BoxShadow(
+            color: primaryBlue.withOpacity(0.4),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ]
+            : null,
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Material(
+            color: isPrimary
+                ? Colors.transparent
+                : Colors.white.withOpacity(0.1),
+            child: InkWell(
+              onTap: onPressed,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      icon,
+                      size: 20,
+                      color: onPressed == null
+                          ? Colors.white.withOpacity(0.3)
+                          : Colors.white,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: onPressed == null
+                            ? Colors.white.withOpacity(0.3)
+                            : Colors.white,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _buildQuestionWidget(Question question) {
     switch (question.type) {
@@ -482,7 +816,19 @@ class SwimmingSafetyPlayScreenState extends State<SwimmingSafetyPlayScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: List.generate(question.options.length, (i) {
-          return _buildChoiceChip(question, i);
+          return TweenAnimationBuilder<double>(
+            duration: Duration(milliseconds: 300 + (i * 100)),
+            tween: Tween(begin: 0, end: 1),
+            builder: (context, value, child) {
+              return Transform.translate(
+                offset: Offset(0, 20 * (1 - value)),
+                child: Opacity(
+                  opacity: value,
+                  child: _buildModernChoiceCard(question, i),
+                ),
+              );
+            },
+          );
         }),
       );
     } else {
@@ -490,65 +836,114 @@ class SwimmingSafetyPlayScreenState extends State<SwimmingSafetyPlayScreen> {
         child: GridView.count(
           crossAxisCount: 2,
           shrinkWrap: true,
-          mainAxisSpacing: 8,
-          crossAxisSpacing: 8,
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
           childAspectRatio: 2.5,
           children: List.generate(question.options.length, (i) {
-            return _buildChoiceChip(question, i, isVertical: false);
+            return TweenAnimationBuilder<double>(
+              duration: Duration(milliseconds: 300 + (i * 100)),
+              tween: Tween(begin: 0, end: 1),
+              builder: (context, value, child) {
+                return Transform.scale(
+                  scale: value,
+                  child: _buildModernChoiceCard(question, i, isVertical: false),
+                );
+              },
+            );
           }),
         ),
       );
     }
   }
 
-  Widget _buildChoiceChip(Question question, int index, {bool isVertical = true}) {
+  Widget _buildModernChoiceCard(Question question, int index, {bool isVertical = true}) {
     final isSelected = _selectedOption == index;
     final isCorrect = question.correctAnswerIndices.contains(index);
-    Color? cardColor;
-    Color? textColor;
+
+    Color bgColor;
+    Color borderColor;
+    Color textColor;
+    IconData? icon;
 
     if (_selectedOption != null) {
       if (isCorrect) {
-        cardColor = Colors.green;
+        bgColor = accentGreen;
+        borderColor = accentGreen;
         textColor = Colors.white;
+        icon = Icons.check_circle_rounded;
       } else if (isSelected) {
-        cardColor = Colors.red;
+        bgColor = dangerRed;
+        borderColor = dangerRed;
         textColor = Colors.white;
+        icon = Icons.cancel_rounded;
       } else {
-        cardColor = Colors.grey.shade300;
-        textColor = Colors.grey.shade600;
+        bgColor = Colors.white.withOpacity(0.3);
+        borderColor = Colors.white.withOpacity(0.2);
+        textColor = Colors.white.withOpacity(0.6);
       }
     } else {
-      cardColor = Colors.white;
-      textColor = Colors.black87;
+      bgColor = Colors.white.withOpacity(0.9);
+      borderColor = Colors.white;
+      textColor = surfaceColor;
     }
 
-    return Card(
-      elevation: 4,
-      margin: EdgeInsets.symmetric(vertical: isVertical ? 6.0 : 0),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      color: cardColor,
-      child: InkWell(
-        onTap: _selectedOption != null ? null : () => _handleAnswer(index),
-        borderRadius: BorderRadius.circular(16),
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 12.0),
-            child: Text(
-              question.options[index],
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w500,
-                color: textColor,
-              ),
+    return Container(
+      margin: EdgeInsets.symmetric(vertical: isVertical ? 8.0 : 0),
+      height: isVertical ? 72 : null,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _selectedOption != null ? null : () => _handleAnswer(index),
+          borderRadius: BorderRadius.circular(20),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: borderColor, width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Stack(
+              children: [
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (icon != null) ...[
+                          Icon(icon, color: textColor, size: 24),
+                          const SizedBox(width: 12),
+                        ],
+                        Flexible(
+                          child: Text(
+                            question.options[index],
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: textColor,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
       ),
     );
   }
-
 
   Widget _buildSortingQuestion(Question question) {
     final orientation = MediaQuery.of(context).orientation;
@@ -560,26 +955,30 @@ class SwimmingSafetyPlayScreenState extends State<SwimmingSafetyPlayScreen> {
 
     final sourceArea = DragTarget<int>(
       builder: (context, candidateData, rejectedData) {
-        return Container(
-          padding: const EdgeInsets.all(12.0),
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.all(16.0),
+          width: double.infinity,
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.15),
-            borderRadius: BorderRadius.circular(12),
+            color: Colors.white.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withOpacity(0.2)),
           ),
-          constraints: const BoxConstraints(minWidth: double.infinity),
           child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: 10,
+            runSpacing: 10,
             alignment: WrapAlignment.center,
             children: availableOptions.map((i) {
               return Draggable<int>(
                 data: i,
                 feedback: Material(
                   color: Colors.transparent,
-                  child: Chip(label: Text(question.options[i]), backgroundColor: Colors.blue[300]),
+                  child: _buildDraggableChip(
+                      question.options[i], primaryBlue, isFeedback: true),
                 ),
-                childWhenDragging: Chip(label: Text(question.options[i]), backgroundColor: Colors.grey),
-                child: Chip(label: Text(question.options[i]), backgroundColor: Colors.blue[200]),
+                childWhenDragging: _buildDraggableChip(
+                    question.options[i], Colors.grey, isDragging: true),
+                child: _buildDraggableChip(question.options[i], primaryBlue),
               );
             }).toList(),
           ),
@@ -593,42 +992,47 @@ class SwimmingSafetyPlayScreenState extends State<SwimmingSafetyPlayScreen> {
 
     final targetArea = DragTarget<int>(
       builder: (context, candidateData, rejectedData) {
-        return Container(
+        bool isHovering = candidateData.isNotEmpty;
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
           width: double.infinity,
-          padding: const EdgeInsets.all(12.0),
+          constraints: const BoxConstraints(minHeight: 100),
+          padding: const EdgeInsets.all(16.0),
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.25),
-            borderRadius: BorderRadius.circular(12),
+            color: isHovering
+                ? accentGreen.withOpacity(0.2)
+                : Colors.white.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: candidateData.isNotEmpty ? Colors.lightBlueAccent : Colors.white60,
+              color: isHovering
+                  ? accentGreen.withOpacity(0.8)
+                  : Colors.white.withOpacity(0.3),
               width: 2,
             ),
           ),
           child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: 10,
+            runSpacing: 10,
             alignment: WrapAlignment.center,
             children: _sortedOptions.asMap().entries.map((entry) {
               int idx = entry.key;
               int optionIndex = entry.value;
 
+              Widget chip = _buildDraggableChip(
+                  '${idx + 1}. ${question.options[optionIndex]}', accentGreen);
+
               return Draggable<int>(
                 data: optionIndex,
                 feedback: Material(
                   color: Colors.transparent,
-                  child: Chip(
-                    label: Text('${idx + 1}. ${question.options[optionIndex]}'),
-                    backgroundColor: Colors.green[200],
+                  child: _buildDraggableChip(
+                    '${idx + 1}. ${question.options[optionIndex]}',
+                    accentGreen,
+                    isFeedback: true,
                   ),
                 ),
                 childWhenDragging: const SizedBox.shrink(),
-                child: Chip(
-                  label: Text(
-                    '${idx + 1}. ${question.options[optionIndex]}',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  backgroundColor: Colors.green[100],
-                ),
+                child: chip,
               );
             }).toList(),
           ),
@@ -651,34 +1055,45 @@ class SwimmingSafetyPlayScreenState extends State<SwimmingSafetyPlayScreen> {
       return Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Text('Kéo và thả vào hộp theo đúng thứ tự', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
+          const Text('Kéo và thả vào hộp theo đúng thứ tự',
+              style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16)),
+          const SizedBox(height: 12),
           targetArea,
-          const SizedBox(height: 10),
-          const Text('↓ Kéo từ đây ↓', style: TextStyle(color: Colors.white70)),
-          const SizedBox(height: 4),
+          const SizedBox(height: 16),
+          const Text('↓ Kéo từ đây ↓',
+              style: TextStyle(color: Colors.white70, fontSize: 14)),
+          const SizedBox(height: 8),
           Expanded(child: SingleChildScrollView(child: sourceArea)),
         ],
       );
-    } else { // Landscape
+    } else {
       return Row(
         children: [
           Expanded(
+            flex: 2,
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Text('Kéo từ đây', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                const Text('Kéo từ đây',
+                    style: TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
                 Flexible(child: SingleChildScrollView(child: sourceArea)),
               ],
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 16),
           Expanded(
+            flex: 3,
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Text('Thả vào đây', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                const Text('Thả vào đây',
+                    style: TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
                 Flexible(child: SingleChildScrollView(child: targetArea)),
               ],
@@ -689,92 +1104,149 @@ class SwimmingSafetyPlayScreenState extends State<SwimmingSafetyPlayScreen> {
     }
   }
 
+  Widget _buildDraggableChip(String label, Color color,
+      {bool isFeedback = false, bool isDragging = false}) {
+    return Transform.scale(
+      scale: isFeedback ? 1.1 : 1.0,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: isDragging ? Colors.transparent : color,
+          borderRadius: BorderRadius.circular(16),
+          border: isDragging ? Border.all(color: Colors.white54, width: 2) : null,
+          boxShadow: isFeedback
+              ? [
+            BoxShadow(
+                color: Colors.black.withOpacity(0.3),
+                blurRadius: 10,
+                spreadRadius: 2)
+          ]
+              : null,
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isDragging ? Colors.white54 : Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildImageSelectionQuestion(Question question) {
     return Center(
       child: GridView.builder(
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
-          childAspectRatio: 1.2,
-          mainAxisSpacing: 8,
-          crossAxisSpacing: 8,
+          childAspectRatio: 1.1,
+          mainAxisSpacing: 16,
+          crossAxisSpacing: 16,
         ),
         shrinkWrap: true,
+        padding: const EdgeInsets.all(8),
         itemCount: question.options.length,
         itemBuilder: (context, i) {
           final isSelected = _selectedOption == i;
           final isCorrect = question.correctAnswerIndices.contains(i);
           Color borderColor = Colors.transparent;
-          double borderWidth = 3.0;
+          double borderWidth = 4.0;
+          Color? overlayColor;
+          IconData? icon;
 
           if (_selectedOption != null) {
             if (isCorrect) {
-              borderColor = Colors.green;
+              borderColor = accentGreen;
+              overlayColor = accentGreen.withOpacity(0.4);
+              icon = Icons.check_circle_rounded;
             } else if (isSelected) {
-              borderColor = Colors.red;
+              borderColor = dangerRed;
+              overlayColor = dangerRed.withOpacity(0.4);
+              icon = Icons.cancel_rounded;
             } else {
-              borderWidth = 1.0;
-              borderColor = Colors.grey;
+              borderWidth = 0;
+              overlayColor = Colors.black.withOpacity(0.5);
             }
           }
 
-          return GestureDetector(
-            onTap: _selectedOption != null ? null : () => _handleImageSelection(i),
-            child: Card(
-              elevation: 4,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: BorderSide(color: borderColor, width: borderWidth),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: GridTile(
-                child: Image.asset(
-                  question.options[i],
-                  fit: BoxFit.cover,
-                ),
-                footer: isSelected ?
-                Container(
-                  padding: const EdgeInsets.all(4),
-                  color: Colors.black54,
-                  child: Icon(
-                    isCorrect ? Icons.check_circle : Icons.cancel,
-                    color: isCorrect ? Colors.green : Colors.red,
+          return TweenAnimationBuilder<double>(
+            duration: Duration(milliseconds: 300 + (i * 100)),
+            tween: Tween(begin: 0, end: 1),
+            builder: (context, value, child) {
+              return Transform.scale(
+                scale: value,
+                child: Opacity(
+                  opacity: value,
+                  child: GestureDetector(
+                    onTap: _selectedOption != null ? null : () => _handleImageSelection(i),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: borderColor, width: borderWidth),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.25),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(15),
+                        child: GridTile(
+                          footer: icon != null
+                              ? Container(
+                            height: 40,
+                            color: Colors.black54,
+                            child: Icon(icon,
+                                color: isCorrect ? accentGreen : dangerRed,
+                                size: 28),
+                          )
+                              : null,
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              Image.asset(
+                                question.options[i],
+                                fit: BoxFit.cover,
+                              ),
+                              if (overlayColor != null)
+                                Container(color: overlayColor),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                )
-                    : null,
-              ),
-            ),
+                ),
+              );
+            },
           );
         },
       ),
     );
   }
+}
 
-  Widget _chip({
-    required IconData icon,
-    required String label,
-    required Color color,
-  }) =>
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        decoration: BoxDecoration(
-          color: color.withOpacity(.25),
-          borderRadius: BorderRadius.circular(32),
-          border: Border.all(color: color.withOpacity(.5)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 14, color: color),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: TextStyle(
-                color: color,
-                fontWeight: FontWeight.w600,
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ),
-      );
+// BỔ SUNG: Custom Painter để vẽ pattern chấm bi trên nền
+class PatternPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withOpacity(0.04)
+      ..style = PaintingStyle.fill;
+
+    const double radius = 1.5;
+    const double spacing = 30.0;
+
+    for (double i = 0; i < size.width; i += spacing) {
+      for (double j = 0; j < size.height; j += spacing) {
+        canvas.drawCircle(Offset(i, j), radius, paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

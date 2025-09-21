@@ -209,22 +209,115 @@ class _PlantHelpSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Sử dụng Media query để lấy kích thước màn hình
+    final screenHeight = MediaQuery.of(context).size.height;
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    // Điều chỉnh kích thước phông chữ dựa trên kích thước màn hình
+    // Đây là các giá trị tương đối, bạn có thể điều chỉnh thêm để phù hợp nhất
+    final baseFontSize = screenWidth * 0.04; // Ví dụ: 4% chiều rộng màn hình cho văn bản thường
+    final headingFontSize = screenWidth * 0.05; // 5% chiều rộng màn hình cho tiêu đề nhỏ
+    final titleFontSize = screenWidth * 0.06; // 6% chiều rộng màn hình cho tiêu đề chính
+
+    // Định nghĩa các kiểu chữ với kích thước mới
+    final titleStyle = TextStyle(
+      fontSize: titleFontSize,
+      fontWeight: FontWeight.bold,
+      color: const Color(0xFF2E7D32), // Màu xanh lá cây đậm
+    );
+    final headingStyle = TextStyle(
+      fontSize: headingFontSize,
+      fontWeight: FontWeight.bold,
+    );
+    final bodyStyle = TextStyle(
+      fontSize: baseFontSize,
+      height: 1.5, // Giữ khoảng cách dòng để dễ đọc hơn
+    );
+    final boldBodyStyle = bodyStyle.copyWith(fontWeight: FontWeight.bold);
+    final italicBodyStyle = bodyStyle.copyWith(fontStyle: FontStyle.italic);
+
+
+    // Widget trợ giúp để tạo văn bản có chữ đậm/thường
+    Widget buildRichText(List<TextSpan> spans) {
+      return RichText(
+        text: TextSpan(
+          style: bodyStyle,
+          children: spans,
+        ),
+      );
+    }
+
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: const [
-            Text('Hướng dẫn chơi',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-            SizedBox(height: 8),
-            Text(
-              '• Giữ 4 chỉ số Nước – Ánh sáng – Dinh dưỡng – Sạch/Bảo vệ trong vùng vàng.\n'
-                  '• Mỗi ngày ~1–2 phút. Mở menu/hướng dẫn thì thời gian đứng lại.\n'
-                  '• Cây lớn dần: Hạt → Cây con → Trưởng thành → Ra hoa.',
-            ),
-            SizedBox(height: 8),
-          ],
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Text('Bí kíp Chăm Cây Vui Vẻ', style: titleStyle),
+              ),
+              const SizedBox(height: 12),
+              Center(
+                child: Text(
+                  'Chào mừng bạn nhỏ! Cùng giúp một hạt mầm lớn thật nhanh và ra hoa rực rỡ nhé!',
+                  style: italicBodyStyle, // Sử dụng kiểu italicBodyStyle
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // --- Mục 1 ---
+              Text('1. Làm sao để cây luôn VUI VẺ? ❤️', style: headingStyle),
+              const SizedBox(height: 8),
+              buildRichText([
+                const TextSpan(text: '• Cây của bạn có 4 nhu cầu quan trọng: '),
+                TextSpan(
+                    text: 'Nước 💧, Ánh sáng ☀️, Phân bón 🌿, và được Sạch sẽ 🐞.\n',
+                    style: boldBodyStyle),
+                const TextSpan(
+                    text:
+                    '• Hãy để ý các thanh nhu cầu này. Cố gắng giữ chúng luôn nằm trong '),
+                TextSpan(text: '"Vùng Vàng" ', style: boldBodyStyle),
+                const TextSpan(text: 'nhé.\n'),
+                const TextSpan(
+                    text:
+                    '• Khi đó, cây sẽ rất vui, khỏe mạnh và lớn rất nhanh!'),
+              ]),
+              const SizedBox(height: 24),
+
+              // --- Mục 2 ---
+              Text('2. Phải làm gì để chăm cây?', style: headingStyle),
+              const SizedBox(height: 8),
+              buildRichText([
+                const TextSpan(
+                    text:
+                    '• Rất đơn giản! Hãy bấm vào các nút công cụ ở phía dưới màn hình.\n'),
+                const TextSpan(text: '• Mỗi nút bấm sẽ mở ra một '),
+                TextSpan(
+                    text: 'trò chơi nhỏ (mini-game) ', style: boldBodyStyle),
+                const TextSpan(text: 'thú vị.\n'),
+                const TextSpan(
+                    text:
+                    '• Chơi thật giỏi sẽ giúp cây được đáp ứng nhu cầu ngay lập tức!'),
+              ]),
+              const SizedBox(height: 24),
+
+              // --- Mục 3 ---
+              Text('3. Phần thưởng lấp lánh!', style: headingStyle),
+              const SizedBox(height: 8),
+              buildRichText([
+                const TextSpan(
+                    text:
+                    '• Cuối mỗi ngày, nếu bạn chăm cây tốt, bạn sẽ được thưởng những ngôi '),
+                TextSpan(text: 'Sao ★ ', style: boldBodyStyle),
+                const TextSpan(text: 'lấp lánh.\n'),
+                const TextSpan(text: '• Càng nhiều sao, điểm của bạn sẽ càng cao!'),
+              ]),
+              const SizedBox(height: 24), // Thêm khoảng trống dưới cùng cho nút "Đã hiểu" (nếu có)
+            ],
+          ),
         ),
       ),
     );

@@ -59,6 +59,9 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
   // Tổng sao tích lũy qua các ngày → dùng làm "correct"
   int _sumStars = 0;
 
+  // Salt cố định cho phiên chơi để mục tiêu ổn định theo NGÀY nhưng khác giữa các phiên
+  late final int _rngSalt;
+
   @override
   void initState() {
     super.initState();
@@ -69,6 +72,11 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
       totalDays: widget.totalDays,
       dayLengthSec: widget.dayLengthSec,
     );
+
+    // Đọc salt đã lưu nếu có; nếu chưa thì tạo mới theo thời gian hiện tại
+    _rngSalt = (widget.initialStateMap?['rngSalt'] as int?) ??
+        (DateTime.now().microsecondsSinceEpoch & 0x7fffffff);
+
     _state.setPaused(widget.isPaused);
     _startTicker();
   }
@@ -92,7 +100,7 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
 
   Future<void> outToHome() async {
     await widget.onSaveProgress(
-      state: _state.toMap(),
+      state: _stateMapWithSalt(), // ✅ lưu kèm rngSalt
       dayIndex: _state.dayIndex,
       stars: _sumStars,
       timeLeftSec: _state.timeLeftSec,
@@ -148,7 +156,7 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
     _sumStars += stars;
 
     await widget.onSaveProgress(
-      state: _state.toMap(),
+      state: _stateMapWithSalt(), // ✅ lưu kèm rngSalt
       dayIndex: _state.dayIndex - 1,
       stars: _sumStars,
       timeLeftSec: _state.timeLeftSec,
@@ -169,13 +177,23 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
     return '$m:$s';
   }
 
+  // Gộp base seed với salt để ổn định theo NGÀY của phiên hiện tại
+  int _dailySeed(int base) => (base ^ _rngSalt) & 0x7fffffff;
+
+  // Lưu state kèm rngSalt để khi mở lại trong cùng ngày thì mục tiêu không đổi
+  Map<String, dynamic> _stateMapWithSalt() {
+    final m = _state.toMap();
+    m['rngSalt'] = _rngSalt;
+    return m;
+  }
+
   // ======== MINI-GAMES (mục tiêu thay đổi theo NGÀY) ========
 
   // Tính mục tiêu theo ngày dựa trên band gốc (0..100) → (low, high) 0..1
   ({double low, double high}) _dailyBand({
     required Band band,
     required int seed,
-    double shiftFactor = 0.5, // tịnh tiến tâm: tỉ lệ của half
+    double shiftFactor = 0.5,
     double scaleMin = 0.9,
     double scaleMax = 1.1,
   }) {
@@ -201,15 +219,30 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
       low = (low - (high - 1.0)).clamp(0.0, 1.0);
       high = 1.0;
     }
+
+    // ✅ THÊM ĐOẠN NÀY ĐỂ ĐẢM BẢO MỤC TIÊU LUÔN > 50%
+    const minTargetLow = 0.5;
+    if (low < minTargetLow) {
+      final offset = minTargetLow - low; // Tính toán độ lệch
+      low += offset;                     // Nâng `low` lên 50%
+      high += offset;                    // Nâng `high` lên một khoảng tương ứng
+
+      // Đảm bảo `high` không vượt quá 100% sau khi nâng
+      if (high > 1.0) high = 1.0;
+    }
+
     return (low: low, high: high);
   }
 
   // -- Tưới nước
   Future<void> _openWateringMiniGame() async {
     final band = _state.stageConfig.bands[statWater]!;
-    final seed = (_state.dayIndex * 733) ^
+    // base seed theo ngày + stage + độ khó
+    final seed0 = (_state.dayIndex * 733) ^
     (_state.stage.index * 997) ^
     (widget.difficulty.index * 53);
+    final seed = _dailySeed(seed0); // ✅ trộn thêm salt phiên chơi
+
     final tgt = _dailyBand(
       band: band,
       seed: seed,
@@ -241,9 +274,12 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
   Future<void> _openLightMiniGame() async {
     final band = _state.stageConfig.bands[statLight]!;
     final current = (_state.stats.light / 100.0).clamp(0.0, 1.0);
-    final seed = (_state.dayIndex * 131071) ^
+
+    final seed0 = (_state.dayIndex * 131071) ^
     (_state.stage.index * 4099) ^
     (widget.difficulty.index * 233);
+    final seed = _dailySeed(seed0); // ✅
+
     final tgt = _dailyBand(
       band: band,
       seed: seed,
@@ -278,9 +314,12 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
   // -- Bón phân (mini-game không đồng hồ)
   Future<void> _openNutrientMiniGame() async {
     final band = _state.stageConfig.bands[statNutrient]!;
-    final seed = (_state.dayIndex * 1000003) ^
+
+    final seed0 = (_state.dayIndex * 1000003) ^
     (_state.stage.index * 9176) ^
     (widget.difficulty.index * 271);
+    final seed = _dailySeed(seed0); // ✅
+
     final tgt = _dailyBand(
       band: band,
       seed: seed,
@@ -326,10 +365,11 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
 
   // -- Tỉa cành (mỗi ngày bố cục khác: truyền daySeed)
   Future<void> _openPruneMiniGame() async {
-    // Seed ổn định theo NGÀY + giai đoạn + độ khó
-    final daySeed = (_state.dayIndex * 4241) ^
+    // base seed ổn định theo NGÀY + giai đoạn + độ khó
+    final daySeed0 = (_state.dayIndex * 4241) ^
     (_state.stage.index * 73) ^
     (widget.difficulty.index * 11);
+    final daySeed = _dailySeed(daySeed0); // ✅ trộn salt
 
     // Có thể tăng số cành ở giai đoạn sau
     final branches = switch (_state.stage) {

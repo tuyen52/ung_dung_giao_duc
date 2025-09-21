@@ -32,10 +32,10 @@ const List<Question> swimmingSafetyQuestionsPool = [
     situation: 'Chọn hình ảnh cho thấy hành động đúng đắn khi ở hồ bơi:',
     icon: '🏊',
     options: [
-      'assets/images/swimming/sitting_at_poolside.png', // Hành động đúng
-      'assets/images/swimming/running_at_poolside.png', // Hành động sai
-      'assets/images/swimming/pushing_friend.png',     // Hành động sai
-      'assets/images/swimming/eating_at_poolside.png',   // Hành động sai
+      'assets/images/swimming/hinh_dung.png', // Hành động đúng
+      'assets/images/swimming/hinh_sai_1.png', // Hành động sai
+      'assets/images/swimming/hinh_sai_2.png',     // Hành động sai
+      'assets/images/swimming/hinh_sai_3.png',   // Hành động sai
     ],
     correctAnswerIndices: [0],
     type: QuestionType.imageSelection,

@@ -389,9 +389,16 @@ class PlantState {
     else if (h >= 40 && inBandCount >= 1) stars = 1;
     else stars = 0;
 
-    // Sang ngày mới
+    // ✅ PHẦN ĐÃ SỬA
+    // Tăng ngày lên trước
     dayIndex += 1;
-    timeLeftSec = dayLengthSec;
+
+    // Chỉ reset thời gian nếu game chưa thực sự kết thúc (chưa bước qua ngày cuối)
+    if (!isFinished) {
+      timeLeftSec = dayLengthSec;
+    }
+    // ✅ KẾT THÚC PHẦN SỬA
+
     return stars;
   }
 

@@ -1,3 +1,5 @@
+// lib/game/plant_care/widgets/gauge_ring.dart
+
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../core/plant_core.dart';
@@ -28,13 +30,27 @@ class GaugeRing extends StatelessWidget {
           height: size,
           child: CustomPaint(
             painter: _GaugePainter(value: value, band: band),
-            child: Center(child: icon),
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  icon,
+                  const SizedBox(height: 4),
+                  Text(
+                    value.toStringAsFixed(0),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 16, // ✅ CẬP NHẬT: TĂNG KÍCH THƯỚC
+                      color: Colors.black87, // ✅ CẬP NHẬT: TĂNG TƯƠNG PHẢN
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
         const SizedBox(height: 6),
         Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
-        Text(value.toStringAsFixed(0),
-            style: const TextStyle(color: Colors.black54)),
       ],
     );
   }
@@ -63,12 +79,12 @@ class _GaugePainter extends CustomPainter {
     final bandPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 10
-      ..color = Colors.amber.withOpacity(0.6);
+      ..color = Colors.lightGreen.withOpacity(0.9);
 
     // Vòng nền
     canvas.drawCircle(c, r, base);
 
-    // Dải vàng (band)
+    // Dải xanh (band)
     final startAngle = -math.pi * 0.5; // bắt đầu từ 12h
     final sweepBand = (band.high - band.low) / 100.0 * 2 * math.pi;
     final startBand = startAngle + (band.low / 100.0) * 2 * math.pi;

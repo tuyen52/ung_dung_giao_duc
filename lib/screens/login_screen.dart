@@ -22,9 +22,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _login() async {
-    // Đã tích hợp logic validation mới, chỉ cần gọi validate()
     if (!_formKey.currentState!.validate()) return;
-
     setState(() => _busy = true);
     try {
       await FirebaseAuth.instance.signInWithEmailAndPassword(
@@ -37,8 +35,17 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       Navigator.pushReplacementNamed(context, '/shell');
     } on FirebaseAuthException catch (e) {
-      final msg = e.message ?? 'Đăng nhập thất bại';
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      String message;
+      if (e.code == 'user-not-found') {
+        message = 'Tài khoản không tồn tại.';
+      } else if (e.code == 'wrong-password') {
+        message = 'Mật khẩu không đúng.';
+      } else if (e.code == 'invalid-credential') {
+        message = 'Tài khoản hoặc mật khẩu sai. Vui lòng đăng nhập lại hoặc thử lại.';
+      } else {
+        message = 'Đã xảy ra lỗi. Vui lòng thử lại.';
+      }
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
     } finally {
       if (mounted) setState(() => _busy = false);
     }

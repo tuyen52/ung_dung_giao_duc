@@ -14,7 +14,6 @@ import 'minigames/pest_catch_minigame.dart';
 import 'minigames/light_adjust_minigame.dart';
 import 'minigames/nutrient_mix_minigame.dart';
 import 'minigames/prune_minigame.dart';
-// lib/game/plant_care/plant_care_play_screen.dart
 
 class PlantCarePlayScreen extends StatefulWidget {
   final bool isPaused;
@@ -130,6 +129,7 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
     super.dispose();
   }
 
+  // ## HÀM ĐÃ CẬP NHẬT ##
   void _startTicker() {
     _lastTick = DateTime.now();
     _ticker = Timer.periodic(const Duration(milliseconds: 200), (_) {
@@ -145,30 +145,71 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
       if (_state.timeLeftSec <= 0 && !_state.isFinished) {
         _onDayEnd();
       }
-      if (_state.isFinished && !_finishNotified) {
-        _finishNotified = true;
-        finishGame();
-      }
+      // KHỐI LOGIC GỌI finishGame() ĐÃ ĐƯỢC GỠ BỎ TỪ ĐÂY
+      // và chuyển vào trong hàm _onDayEnd()
       if (mounted) setState(() {});
     });
   }
 
+  // ## HÀM ĐÃ CẬP NHẬT ##
   Future<void> _onDayEnd() async {
     final stars = _state.endDayAndScore();
     _sumStars += stars;
     await widget.onSaveProgress(
       state: _stateMapWithSalt(),
-      dayIndex: _state.dayIndex - 1,
+      dayIndex: _state.dayIndex - 1, // Lưu chỉ số ngày vừa hoàn thành
       stars: _sumStars,
       timeLeftSec: _state.timeLeftSec,
     );
     if (!mounted) return;
+
+    // Hiển thị dialog và đợi người chơi bấm nút
     await showDialog(
       context: context,
       barrierDismissible: false,
       builder: (_) => _DaySummaryDialog(stars: stars, stage: _state.stage),
     );
-    if (mounted) setState(() {});
+
+    // LOGIC MỚI: Sau khi dialog đóng, kiểm tra xem game đã thực sự kết thúc chưa
+    if (_state.isFinished && !_finishNotified) {
+      _finishNotified = true;
+      // Thêm một độ trễ nhỏ để tránh cảm giác chuyển cảnh đột ngột
+      await Future.delayed(const Duration(milliseconds: 200));
+      if (mounted) {
+        finishGame();
+      }
+    } else if (mounted) {
+      // Nếu game chưa kết thúc, chỉ cần cập nhật lại giao diện
+      setState(() {});
+    }
+  }
+
+  Future<void> _promptEndDay() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Kết thúc ngày?'),
+        content: const Text('Bạn có muốn kết thúc ngày hôm nay ngay bây giờ không?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Kết thúc'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm ?? false) {
+      if (!mounted) return;
+      // Đặt lại thời gian về 0 để logic _onDayEnd chạy đúng
+      setState(() {
+        _state.timeLeftSec = 0;
+      });
+    }
   }
 
   String _mmss(int seconds) {
@@ -341,12 +382,14 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
     final cfg = _state.stageConfig;
     final centerPlant =
     _PlantCard(stage: _state.stage, health: _state.stats.health);
+
     final topInfo = _TopInfoBar(
       dayIndex: _state.dayIndex,
       totalDays: _state.totalDays,
       timeText: _mmss(_state.timeLeftSec),
       stage: _state.stage,
       health: _state.stats.health,
+      onEndDayPressed: _promptEndDay,
     );
 
     return Scaffold(
@@ -513,6 +556,8 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
   }
 }
 
+// ... CÁC WIDGET PHÍA DƯỚI KHÔNG THAY ĐỔI ...
+
 class _CuteBackground extends StatelessWidget {
   const _CuteBackground();
   @override
@@ -596,8 +641,8 @@ class _PlantCard extends StatelessWidget {
                   right: 0,
                   top: 0,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 6),
+                    padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
@@ -658,12 +703,15 @@ class _TopInfoBar extends StatelessWidget {
   final String timeText;
   final PlantStage stage;
   final double health;
+  final VoidCallback? onEndDayPressed;
+
   const _TopInfoBar({
     required this.dayIndex,
     required this.totalDays,
     required this.timeText,
     required this.stage,
     required this.health,
+    this.onEndDayPressed,
   });
 
   @override
@@ -674,19 +722,20 @@ class _TopInfoBar extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
-            _chip(const Icon(Icons.calendar_month, size: 18),
-                'Ngày $dayIndex/$totalDays'),
+            _chip(const Icon(Icons.calendar_month, size: 18), 'Ngày ${dayIndex > totalDays ? totalDays : dayIndex}/$totalDays'),
             const SizedBox(width: 8),
             _chip(const Icon(Icons.timer, size: 18), timeText),
             const SizedBox(width: 8),
             _chip(const Icon(Icons.local_florist, size: 18), _stageName(stage)),
-            const SizedBox(width: 24),
-            Row(children: [
-              const Icon(Icons.favorite, size: 18, color: Colors.pink),
-              const SizedBox(width: 4),
-              Text(health.toStringAsFixed(0),
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
-            ]),
+            const SizedBox(width: 16),
+            FilledButton.tonalIcon(
+              onPressed: onEndDayPressed,
+              icon: const Icon(Icons.done_all, size: 18),
+              label: const Text('Kết thúc ngày'),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+              ),
+            ),
           ],
         ),
       ),

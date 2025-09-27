@@ -107,14 +107,11 @@ class _RegisterChildScreenState extends State<RegisterChildScreen> {
             end: Alignment.bottomCenter,
           ),
         ),
-        // SỬ DỤNG OrientationBuilder ĐỂ TẠO GIAO DIỆN XOAY NGANG
         child: OrientationBuilder(
           builder: (context, orientation) {
-            // Nếu là xoay ngang, sử dụng layout 2 cột
             if (orientation == Orientation.landscape) {
               return _buildLandscapeLayout();
             }
-            // Mặc định là layout dọc
             return _buildPortraitLayout();
           },
         ),
@@ -122,40 +119,40 @@ class _RegisterChildScreenState extends State<RegisterChildScreen> {
     );
   }
 
-  // Widget cho layout dọc (giữ nguyên code cũ)
+  // --- WIDGET GIAO DIỆN DỌC - ĐÃ CẬP NHẬT ---
   Widget _buildPortraitLayout() {
     return SafeArea(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          return SingleChildScrollView(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight),
-              child: IntrinsicHeight(
-                child: Column(
-                  children: [
-                    _buildHeader(), // Tách phần header ra
-                    const SizedBox(height: 25),
-                    _buildForm(), // Tách phần form ra
-                    const Spacer(),
-                  ],
-                ),
-              ),
+      child: SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            // Đảm bảo chiều cao tối thiểu bằng chiều cao của viewport
+            minHeight: MediaQuery.of(context).size.height -
+                MediaQuery.of(context).padding.top,
+          ),
+          child: IntrinsicHeight(
+            child: Column(
+              children: [
+                _buildHeader(),
+                const SizedBox(height: 25),
+                _buildForm(),
+                // Spacer giờ sẽ hoạt động đúng, đẩy form lên trên
+                const Spacer(),
+              ],
             ),
-          );
-        },
+          ),
+        ),
       ),
     );
   }
 
-  // Widget cho layout xoay ngang
+  // Widget cho layout xoay ngang (không thay đổi)
   Widget _buildLandscapeLayout() {
     return SafeArea(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Cột bên trái: Header
           Expanded(
-            flex: 2, // Chiếm 2/5 không gian
+            flex: 2,
             child: SingleChildScrollView(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20.0),
@@ -163,9 +160,8 @@ class _RegisterChildScreenState extends State<RegisterChildScreen> {
               ),
             ),
           ),
-          // Cột bên phải: Form
           Expanded(
-            flex: 3, // Chiếm 3/5 không gian
+            flex: 3,
             child: SingleChildScrollView(
               child: _buildForm(),
             ),
@@ -175,10 +171,10 @@ class _RegisterChildScreenState extends State<RegisterChildScreen> {
     );
   }
 
-  // Widget chứa phần Header (Tiêu đề và Icon)
+  // Widget chứa phần Header (không thay đổi)
   Widget _buildHeader() {
     return Column(
-      mainAxisAlignment: MainAxisAlignment.center, // Căn giữa nội dung
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
         const SizedBox(height: 20),
         Text(
@@ -207,7 +203,7 @@ class _RegisterChildScreenState extends State<RegisterChildScreen> {
     );
   }
 
-  // Widget chứa Form nhập liệu
+  // Widget chứa Form nhập liệu (không thay đổi)
   Widget _buildForm() {
     return Container(
       padding: const EdgeInsets.all(24),
@@ -278,7 +274,7 @@ class _RegisterChildScreenState extends State<RegisterChildScreen> {
     );
   }
 
-  // --- Các widget build TextField, Dropdown, DatePicker giữ nguyên như cũ ---
+  // Các widget con không thay đổi
   Widget _buildTextField({
     required TextEditingController controller,
     required String labelText,
@@ -353,7 +349,7 @@ class _RegisterChildScreenState extends State<RegisterChildScreen> {
       decoration: InputDecoration(
         labelText: 'Ngày Sinh',
         labelStyle: GoogleFonts.balsamiqSans(color: Colors.grey[700]),
-        prefixIcon: const Icon(Icons.cake_outlined, color: const Color(0xFFBA68C8)),
+        prefixIcon: const Icon(Icons.cake_outlined, color: Color(0xFFBA68C8)),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(25),
           borderSide: BorderSide.none,

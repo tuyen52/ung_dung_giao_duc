@@ -54,6 +54,7 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
   double _accum = 0.0;
   bool _finishNotified = false;
   int _sumStars = 0;
+  int _spamDays = 0; // ngày bị coi là kết thúc sớm/không chơi (phạt nhẹ)
   late final int _rngSalt;
 
   @override
@@ -80,11 +81,39 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
     }
   }
 
+  @override
+  void didUpdateWidget(covariant PlantCarePlayScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isPaused != widget.isPaused) {
+      _state.setPaused(widget.isPaused);
+    }
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  // Helper: chạy 1 tác vụ trong trạng thái pause để tránh decay/grow nền.
+  Future<T?> _runPaused<T>(Future<T?> Function() op) async {
+    _state.setPaused(true);
+    if (mounted) setState(() {});
+    try {
+      return await op();
+    } finally {
+      if (!_state.isFinished) {
+        _state.setPaused(false);
+        if (mounted) setState(() {});
+      }
+    }
+  }
+
   Future<void> finishGame() async {
     _ticker?.cancel();
     await widget.onClearProgress();
     if (!mounted) return;
-    widget.onFinish(_sumStars, 0);
+    widget.onFinish(_sumStars, _spamDays); // truyền cả số ngày spam
   }
 
   Future<void> outToHome() async {
@@ -109,27 +138,13 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
         dayLengthSec: widget.dayLengthSec,
       );
       _sumStars = 0;
+      _spamDays = 0;
       _finishNotified = false;
       _accum = 0.0;
     });
     _startTicker();
   }
 
-  @override
-  void didUpdateWidget(covariant PlantCarePlayScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.isPaused != widget.isPaused) {
-      _state.setPaused(widget.isPaused);
-    }
-  }
-
-  @override
-  void dispose() {
-    _ticker?.cancel();
-    super.dispose();
-  }
-
-  // ## HÀM ĐÃ CẬP NHẬT ##
   void _startTicker() {
     _lastTick = DateTime.now();
     _ticker = Timer.periodic(const Duration(milliseconds: 200), (_) {
@@ -145,54 +160,60 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
       if (_state.timeLeftSec <= 0 && !_state.isFinished) {
         _onDayEnd();
       }
-      // KHỐI LOGIC GỌI finishGame() ĐÃ ĐƯỢC GỠ BỎ TỪ ĐÂY
-      // và chuyển vào trong hàm _onDayEnd()
       if (mounted) setState(() {});
     });
   }
 
-  // ## HÀM ĐÃ CẬP NHẬT ##
   Future<void> _onDayEnd() async {
     final stars = _state.endDayAndScore();
+    if (_state.lastDayFlaggedSpam) _spamDays++;
     _sumStars += stars;
+
     await widget.onSaveProgress(
       state: _stateMapWithSalt(),
-      dayIndex: _state.dayIndex - 1, // Lưu chỉ số ngày vừa hoàn thành
+      dayIndex: _state.dayIndex - 1, // ngày vừa hoàn thành
       stars: _sumStars,
       timeLeftSec: _state.timeLeftSec,
     );
     if (!mounted) return;
 
-    // Hiển thị dialog và đợi người chơi bấm nút
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => _DaySummaryDialog(stars: stars, stage: _state.stage),
-    );
+    await _runPaused(() async {
+      return await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => _DaySummaryDialog(stars: stars, stage: _state.stage),
+      );
+    });
 
-    // LOGIC MỚI: Sau khi dialog đóng, kiểm tra xem game đã thực sự kết thúc chưa
     if (_state.isFinished && !_finishNotified) {
       _finishNotified = true;
-      // Thêm một độ trễ nhỏ để tránh cảm giác chuyển cảnh đột ngột
-      if (mounted) {
-        finishGame();
-      }
+      if (mounted) finishGame();
     } else if (mounted) {
-      // Nếu game chưa kết thúc, chỉ cần cập nhật lại giao diện
       setState(() {});
     }
   }
 
   Future<void> _promptEndDay() async {
+    final playedPct = (_state.timeRatioToday * 100).round();
+    final playedEnough = _state.timeRatioToday >= 0.25; // khớp core
+    final usedTool = _state.hadToolUseToday;
+
+    final msg = (!playedEnough || !usedTool)
+        ? 'Nếu kết thúc sớm bây giờ, con có thể sẽ không được sao đâu nhé.\n'
+        '${playedEnough ? '' : '• Con mới chơi khoảng $playedPct% của ngày.\n'}'
+        '${usedTool ? '' : '• Con chưa dùng công cụ nào hôm nay.\n'}'
+        'Con muốn thử thêm một chút rồi hãy kết thúc chứ?'
+        : 'Con đã chăm cây khá tốt rồi. Kết thúc ngày để nhận sao nhé!';
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Kết thúc ngày?'),
-        content: const Text('Bạn có muốn kết thúc ngày hôm nay ngay bây giờ không?'),
+        content: Text(msg),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Hủy'),
+            child: const Text('Chơi tiếp'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
@@ -204,9 +225,8 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
 
     if (confirm ?? false) {
       if (!mounted) return;
-      // Đặt lại thời gian về 0 để logic _onDayEnd chạy đúng
       setState(() {
-        _state.timeLeftSec = 0;
+        _state.timeLeftSec = 0; // để chạy _onDayEnd
       });
     }
   }
@@ -262,23 +282,23 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
 
   Future<void> _openWateringMiniGame() async {
     final band = _state.stageConfig.bands[statWater]!;
-    final seed0 = (_state.dayIndex * 733) ^
-    (_state.stage.index * 997) ^
-    (widget.difficulty.index * 53);
+    final seed0 = (_state.dayIndex * 733) ^ (_state.stage.index * 997) ^ (widget.difficulty.index * 53);
     final seed = _dailySeed(seed0);
-    final tgt = _dailyBand(
-        band: band, seed: seed, shiftFactor: 0.4, scaleMin: 0.92, scaleMax: 1.08);
-    final res = await Navigator.push<WateringMiniGameResult>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => WateringMinigamePage(
+    final tgt = _dailyBand(band: band, seed: seed, shiftFactor: 0.4, scaleMin: 0.92, scaleMax: 1.08);
+    final res = await _runPaused(() async {
+      return await Navigator.push<WateringMiniGameResult>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => WateringMinigamePage(
             targetLow: tgt.low,
             targetHigh: tgt.high,
             durationSec: 15,
-            stage: _state.stage),
-        fullscreenDialog: true,
-      ),
-    );
+            stage: _state.stage,
+          ),
+          fullscreenDialog: true,
+        ),
+      );
+    });
     if (res == null) return;
     final delta = 0.8 + res.score0to1 * 2.2;
     _state.applyTool(ToolType.water, delta: delta);
@@ -288,23 +308,23 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
   Future<void> _openLightMiniGame() async {
     final band = _state.stageConfig.bands[statLight]!;
     final current = (_state.stats.light / 100.0).clamp(0.0, 1.0);
-    final seed0 = (_state.dayIndex * 131071) ^
-    (_state.stage.index * 4099) ^
-    (widget.difficulty.index * 233);
+    final seed0 = (_state.dayIndex * 131071) ^ (_state.stage.index * 4099) ^ (widget.difficulty.index * 233);
     final seed = _dailySeed(seed0);
-    final tgt = _dailyBand(
-        band: band, seed: seed, shiftFactor: 0.5, scaleMin: 0.9, scaleMax: 1.1);
-    final res = await Navigator.push<LightMiniGameResult>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => LightAdjustMinigamePage(
+    final tgt = _dailyBand(band: band, seed: seed, shiftFactor: 0.5, scaleMin: 0.9, scaleMax: 1.1);
+    final res = await _runPaused(() async {
+      return await Navigator.push<LightMiniGameResult>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => LightAdjustMinigamePage(
             targetLow: tgt.low,
             targetHigh: tgt.high,
             current: current,
-            durationSec: 15),
-        fullscreenDialog: true,
-      ),
-    );
+            durationSec: 15,
+          ),
+          fullscreenDialog: true,
+        ),
+      );
+    });
     if (res == null) return;
     final center = (tgt.low + tgt.high) / 2.0;
     final needIncrease = current < center;
@@ -316,20 +336,18 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
 
   Future<void> _openNutrientMiniGame() async {
     final band = _state.stageConfig.bands[statNutrient]!;
-    final seed0 = (_state.dayIndex * 1000003) ^
-    (_state.stage.index * 9176) ^
-    (widget.difficulty.index * 271);
+    final seed0 = (_state.dayIndex * 1000003) ^ (_state.stage.index * 9176) ^ (widget.difficulty.index * 271);
     final seed = _dailySeed(seed0);
-    final tgt = _dailyBand(
-        band: band, seed: seed, shiftFactor: 0.5, scaleMin: 0.9, scaleMax: 1.1);
-    final res = await Navigator.push<NutrientMiniGameResult>(
-      context,
-      MaterialPageRoute(
-        builder: (_) =>
-            NutrientMixMinigamePage(targetLow: tgt.low, targetHigh: tgt.high),
-        fullscreenDialog: true,
-      ),
-    );
+    final tgt = _dailyBand(band: band, seed: seed, shiftFactor: 0.5, scaleMin: 0.9, scaleMax: 1.1);
+    final res = await _runPaused(() async {
+      return await Navigator.push<NutrientMiniGameResult>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => NutrientMixMinigamePage(targetLow: tgt.low, targetHigh: tgt.high),
+          fullscreenDialog: true,
+        ),
+      );
+    });
     if (res == null) return;
     final delta = 0.6 + res.score0to1 * 2.4;
     _state.applyTool(ToolType.nutrient, delta: delta);
@@ -337,13 +355,15 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
   }
 
   Future<void> _openPestMiniGame() async {
-    final res = await Navigator.push<PestCatchMiniGameResult>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const PestCatchMinigamePage(durationSec: 20, bugs: 10),
-        fullscreenDialog: true,
-      ),
-    );
+    final res = await _runPaused(() async {
+      return await Navigator.push<PestCatchMiniGameResult>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const PestCatchMinigamePage(durationSec: 20, bugs: 10),
+          fullscreenDialog: true,
+        ),
+      );
+    });
     if (res == null) return;
     final delta = 0.6 + res.score0to1 * 2.4;
     _state.applyTool(ToolType.pest, delta: delta);
@@ -351,9 +371,7 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
   }
 
   Future<void> _openPruneMiniGame() async {
-    final daySeed0 = (_state.dayIndex * 4241) ^
-    (_state.stage.index * 73) ^
-    (widget.difficulty.index * 11);
+    final daySeed0 = (_state.dayIndex * 4241) ^ (_state.stage.index * 73) ^ (widget.difficulty.index * 11);
     final daySeed = _dailySeed(daySeed0);
     final branches = switch (_state.stage) {
       PlantStage.seed => 5,
@@ -361,14 +379,15 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
       PlantStage.adult => 7,
       PlantStage.flowering => 8,
     };
-    final res = await Navigator.push<PruneMiniGameResult>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => PruneMinigamePage(
-            durationSec: 20, branches: branches, daySeed: daySeed),
-        fullscreenDialog: true,
-      ),
-    );
+    final res = await _runPaused(() async {
+      return await Navigator.push<PruneMiniGameResult>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PruneMinigamePage(durationSec: 20, branches: branches, daySeed: daySeed),
+          fullscreenDialog: true,
+        ),
+      );
+    });
     if (res == null) return;
     final delta = 0.6 + res.score0to1 * 2.2;
     _state.applyTool(ToolType.prune, delta: delta);
@@ -379,8 +398,7 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
   Widget build(BuildContext context) {
     final o = MediaQuery.of(context).orientation;
     final cfg = _state.stageConfig;
-    final centerPlant =
-    _PlantCard(stage: _state.stage, health: _state.stats.health);
+    final centerPlant = _PlantCard(stage: _state.stage, health: _state.stats.health);
 
     final topInfo = _TopInfoBar(
       dayIndex: _state.dayIndex,
@@ -408,8 +426,7 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
                   const SizedBox(height: 8),
                   Expanded(
                     child: Padding(
-                      padding:
-                      const EdgeInsets.symmetric(horizontal: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
                       child: Row(
                         children: [
                           Expanded(child: Center(child: centerPlant)),
@@ -501,8 +518,7 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                        vertical: 12, horizontal: 8),
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       boxShadow: [
@@ -566,10 +582,7 @@ class _CuteBackground extends StatelessWidget {
       Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [
-              Colors.white.withOpacity(0.0),
-              Colors.white.withOpacity(0.10)
-            ],
+            colors: [Colors.white.withOpacity(0.0), Colors.white.withOpacity(0.10)],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
@@ -586,8 +599,7 @@ class _PlantCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final healthColor = Color.lerp(const Color(0xFFE53935),
-        const Color(0xFF2E7D32), (health / 100.0).clamp(0, 1))!;
+    final healthColor = Color.lerp(const Color(0xFFE53935), const Color(0xFF2E7D32), (health / 100.0).clamp(0, 1))!;
 
     return FittedBox(
       child: Container(
@@ -595,19 +607,12 @@ class _PlantCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(.9),
           borderRadius: BorderRadius.circular(28),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withOpacity(.08),
-                blurRadius: 12,
-                offset: const Offset(0, 6))
-          ],
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(.08), blurRadius: 12, offset: const Offset(0, 6))],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_stageText(),
-                style:
-                const TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
+            Text(_stageText(), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
             const SizedBox(height: 8),
             SizedBox(
               width: 200,
@@ -618,43 +623,32 @@ class _PlantCard extends StatelessWidget {
                   height: 170,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                          color: healthColor.withOpacity(.28),
-                          blurRadius: 24,
-                          spreadRadius: 4)
-                    ],
+                    boxShadow: [BoxShadow(color: healthColor.withOpacity(.28), blurRadius: 24, spreadRadius: 4)],
                   ),
                 ),
-                Image.asset(_imgForStage(), fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) {
-                      final emoji = {
-                        PlantStage.seed: '🌱',
-                        PlantStage.seedling: '🌿',
-                        PlantStage.adult: '🌳',
-                        PlantStage.flowering: '🌸',
-                      }[stage]!;
-                      return Text(emoji, style: const TextStyle(fontSize: 96));
-                    }),
+                Image.asset(_imgForStage(), fit: BoxFit.contain, errorBuilder: (_, __, ___) {
+                  final emoji = {
+                    PlantStage.seed: '🌱',
+                    PlantStage.seedling: '🌿',
+                    PlantStage.adult: '🌳',
+                    PlantStage.flowering: '🌸',
+                  }[stage]!;
+                  return Text(emoji, style: const TextStyle(fontSize: 96));
+                }),
                 Positioned(
                   right: 0,
                   top: 0,
                   child: Container(
-                    padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                            color: Colors.black.withOpacity(.08), blurRadius: 8)
-                      ],
+                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(.08), blurRadius: 8)],
                     ),
                     child: Row(children: [
                       const Icon(Icons.favorite, size: 16, color: Colors.pink),
                       const SizedBox(width: 4),
-                      Text(health.toStringAsFixed(0),
-                          style: const TextStyle(fontWeight: FontWeight.w900)),
+                      Text(health.toStringAsFixed(0), style: const TextStyle(fontWeight: FontWeight.w900)),
                     ]),
                   ),
                 ),
@@ -662,8 +656,7 @@ class _PlantCard extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             const Text('Giữ các chỉ số trong vùng vàng để cây khoẻ!',
-                style: TextStyle(color: Colors.black54),
-                textAlign: TextAlign.center),
+                style: TextStyle(color: Colors.black54), textAlign: TextAlign.center),
           ],
         ),
       ),
@@ -721,7 +714,8 @@ class _TopInfoBar extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
-            _chip(const Icon(Icons.calendar_month, size: 18), 'Ngày ${dayIndex > totalDays ? totalDays : dayIndex}/$totalDays'),
+            _chip(const Icon(Icons.calendar_month, size: 18),
+                'Ngày ${dayIndex > totalDays ? totalDays : dayIndex}/$totalDays'),
             const SizedBox(width: 8),
             _chip(const Icon(Icons.timer, size: 18), timeText),
             const SizedBox(width: 8),
@@ -731,9 +725,7 @@ class _TopInfoBar extends StatelessWidget {
               onPressed: onEndDayPressed,
               icon: const Icon(Icons.done_all, size: 18),
               label: const Text('Kết thúc ngày'),
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-              ),
+              style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 12)),
             ),
           ],
         ),
@@ -760,9 +752,7 @@ class _TopInfoBar extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 6)
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 6)],
       ),
       child: Row(children: [icon, const SizedBox(width: 6), Text(text)]),
     );
@@ -779,26 +769,10 @@ class _RightStatsPanel extends StatelessWidget {
     return SingleChildScrollView(
       child: Column(
         children: [
-          GaugeRing(
-              label: 'Nước',
-              icon: const Icon(Icons.opacity),
-              value: stats.water,
-              band: bands[statWater]!),
-          GaugeRing(
-              label: 'Ánh sáng',
-              icon: const Icon(Icons.wb_sunny),
-              value: stats.light,
-              band: bands[statLight]!),
-          GaugeRing(
-              label: 'Dinh dưỡng',
-              icon: const Icon(Icons.grass),
-              value: stats.nutrient,
-              band: bands[statNutrient]!),
-          GaugeRing(
-              label: 'Sạch/Bảo vệ',
-              icon: const Icon(Icons.spa),
-              value: stats.clean,
-              band: bands[statClean]!),
+          GaugeRing(label: 'Nước', icon: const Icon(Icons.opacity), value: stats.water, band: bands[statWater]!),
+          GaugeRing(label: 'Ánh sáng', icon: const Icon(Icons.wb_sunny), value: stats.light, band: bands[statLight]!),
+          GaugeRing(label: 'Dinh dưỡng', icon: const Icon(Icons.grass), value: stats.nutrient, band: bands[statNutrient]!),
+          GaugeRing(label: 'Sạch/Bảo vệ', icon: const Icon(Icons.spa), value: stats.clean, band: bands[statClean]!),
         ],
       ),
     );
@@ -817,39 +791,19 @@ class _ToolBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 8,
-              offset: const Offset(0, -2))
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, -2))],
       ),
       child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
         if (tools.contains(ToolType.water))
-          ToolButton(
-              icon: Icons.opacity,
-              label: 'Tưới',
-              onTap: () => onUse(ToolType.water)),
+          ToolButton(icon: Icons.opacity, label: 'Tưới', onTap: () => onUse(ToolType.water)),
         if (tools.contains(ToolType.light))
-          ToolButton(
-              icon: Icons.wb_sunny,
-              label: 'Ánh sáng',
-              onTap: () => onUse(ToolType.light)),
+          ToolButton(icon: Icons.wb_sunny, label: 'Ánh sáng', onTap: () => onUse(ToolType.light)),
         if (tools.contains(ToolType.nutrient))
-          ToolButton(
-              icon: Icons.grass,
-              label: 'Bón phân',
-              onTap: () => onUse(ToolType.nutrient)),
+          ToolButton(icon: Icons.grass, label: 'Bón phân', onTap: () => onUse(ToolType.nutrient)),
         if (tools.contains(ToolType.pest))
-          ToolButton(
-              icon: Icons.bug_report,
-              label: 'Bắt sâu',
-              onTap: () => onUse(ToolType.pest)),
+          ToolButton(icon: Icons.bug_report, label: 'Bắt sâu', onTap: () => onUse(ToolType.pest)),
         if (tools.contains(ToolType.prune))
-          ToolButton(
-              icon: Icons.content_cut,
-              label: 'Tỉa',
-              onTap: () => onUse(ToolType.prune)),
+          ToolButton(icon: Icons.content_cut, label: 'Tỉa', onTap: () => onUse(ToolType.prune)),
       ]),
     );
   }
@@ -869,17 +823,15 @@ class _DaySummaryDialog extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: List.generate(
-              3,
-                  (i) => Icon(i < stars ? Icons.star : Icons.star_border,
-                  size: 28, color: Colors.amber)),
+            3,
+                (i) => Icon(i < stars ? Icons.star : Icons.star_border, size: 28, color: Colors.amber),
+          ),
         ),
         const SizedBox(height: 12),
         Text('Giai đoạn hiện tại: ${_stageName(stage)}'),
       ]),
       actions: [
-        TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Tiếp tục'))
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Tiếp tục')),
       ],
     );
   }

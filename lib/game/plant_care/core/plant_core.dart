@@ -142,9 +142,7 @@ class StageConfigs {
 
   static StageConfig of(PlantStage stage, DifficultyConfig diff) {
     final cfg = base[stage]!;
-    // Áp padding cho band theo mức khó/dễ
     final padded = cfg.bands.map((k, v) => MapEntry(k, v.pad(diff.bandPadding)));
-    // Điều chỉnh decay theo mức khó/dễ
     final decay = cfg.decayPerDay.map((k, v) => MapEntry(k, v * diff.decayMul));
     return StageConfig(
       bands: padded,
@@ -209,10 +207,8 @@ class Stats {
 // ===================== HÀM TÍNH HEALTH & GROWTH =====================
 
 double _scoreFromBand(double v, Band band) {
-  // 100 nếu nằm trong band, giảm dần khi lệch.
   if (band.contains(v)) return 100.0;
   final d = v < band.low ? (band.low - v) : (v - band.high);
-  // mỗi 1 điểm lệch giảm 4 điểm (tối thiểu 0)
   final s = (100.0 - d * 4.0).clamp(0.0, 100.0);
   return s;
 }
@@ -241,10 +237,6 @@ class ToolEffectResult {
   });
 }
 
-/// Áp dụng hiệu ứng công cụ với cơ chế "tiệm cận" để tránh vượt đỏ.
-/// [baseDelta] có thể âm hoặc dương (ví dụ kéo rèm giảm light => âm).
-/// [nearDist] khoảng cách coi như "gần" band để giảm lực.
-/// [kNear] hệ số lực khi gần band; [kInside] khi đã ở trong band.
 double applyToolValue(
     double current,
     double baseDelta,
@@ -255,7 +247,7 @@ double applyToolValue(
     }) {
   double factor;
   if (band.contains(current)) {
-    factor = kInside; // trong band → lực nhỏ, tránh nhảy sang đỏ
+    factor = kInside;
   } else {
     final dist = current < band.low ? (band.low - current) : (current - band.high);
     factor = dist < nearDist ? kNear : 1.0;
@@ -299,8 +291,22 @@ class PlantState {
     PlantStage.seed: 100,
     PlantStage.seedling: 100,
     PlantStage.adult: 100,
-    PlantStage.flowering: 100, // đạt 100 thì coi như hoàn tất vòng đời run
+    PlantStage.flowering: 100,
   };
+
+  // --- Kid-friendly daily metrics ---
+  double _elapsedSecToday = 0;    // số giây đã chơi trong ngày
+  double _healthSumToday = 0;     // cộng dồn health để tính trung bình
+  int _samplesToday = 0;          // số mẫu health trong ngày
+  int _toolUsesToday = 0;         // số lần dùng công cụ hợp lệ trong ngày
+  double _growthAtStartOfDay = 0; // mốc growth đầu ngày
+  bool lastDayFlaggedSpam = false; // cờ UI: ngày vừa qua bị coi là sớm/không chơi
+
+  bool get hadToolUseToday => _toolUsesToday > 0;
+  double get timeRatioToday =>
+      dayLengthSec <= 0 ? 0.0 : (_elapsedSecToday / dayLengthSec).clamp(0.0, 1.0);
+  double get growthDeltaToday =>
+      (stats.growth - _growthAtStartOfDay).clamp(0.0, 100.0);
 
   PlantState({
     this.stage = PlantStage.seed,
@@ -313,7 +319,9 @@ class PlantState {
     this.paused = false,
   })  : stats = initialStats ?? Stats.initial(),
         _diff = DifficultyConfig.of(difficultyLevel),
-        timeLeftSec = initialTimeLeftSec ?? 90;
+        timeLeftSec = initialTimeLeftSec ?? 90 {
+    _growthAtStartOfDay = stats.growth; // mốc growth đầu ngày
+  }
 
   StageConfig get stageConfig => StageConfigs.of(stage, _diff);
 
@@ -321,12 +329,10 @@ class PlantState {
 
   /// Gọi mỗi khung thời gian (delta giây). Nếu đang pause thì chỉ giảm cooldown.
   void tick(double deltaSec) {
-    // Giảm cooldown dù đang pause (để tránh tích quá nhiều), hoặc bạn có thể giữ nguyên.
     _cooldownSec.updateAll((key, value) => (value - deltaSec).clamp(0.0, 9999.0));
-
     if (paused || isFinished) return;
 
-    // Quy đổi decay theo độ dài 1 ngày: decayPerDay / dayLengthSec mỗi giây
+    // Quy đổi decay theo độ dài 1 ngày
     final d = stageConfig.decayPerDay;
     stats.water = (stats.water - (d[statWater]! / dayLengthSec) * deltaSec).clamp(0.0, 100.0);
     stats.light = (stats.light - (d[statLight]! / dayLengthSec) * deltaSec).clamp(0.0, 100.0);
@@ -337,9 +343,14 @@ class PlantState {
     stats.health = computeHealth(stats, stageConfig.bands);
 
     // Tăng trưởng dựa trên health
-    final gRate = stageConfig.growthPerSecAtFullHealth; // tại 100 health
+    final gRate = stageConfig.growthPerSecAtFullHealth;
     final inc = gRate * (stats.health / 100.0) * deltaSec;
     stats.growth = (stats.growth + inc).clamp(0.0, 100.0);
+
+    // Thu thập dữ liệu “nỗ lực trong ngày”
+    _elapsedSecToday += deltaSec;
+    _healthSumToday += stats.health;
+    _samplesToday += 1;
 
     // Chuyển stage nếu đủ growth
     _maybeAdvanceStage();
@@ -352,7 +363,6 @@ class PlantState {
   void _maybeAdvanceStage() {
     final need = growthForNext[stage]!;
     if (stats.growth >= need) {
-      // Reset growth khi lên stage mới (cảm giác "chinh phục")
       stats.growth = 0;
       switch (stage) {
         case PlantStage.seed:
@@ -365,15 +375,23 @@ class PlantState {
           stage = PlantStage.flowering;
           break;
         case PlantStage.flowering:
-        // đã max; không tăng nữa.
           break;
       }
     }
   }
 
+  void _resetDayCounters() {
+    _elapsedSecToday = 0;
+    _healthSumToday = 0;
+    _samplesToday = 0;
+    _toolUsesToday = 0;
+    _growthAtStartOfDay = stats.growth;
+    // lastDayFlaggedSpam sẽ được cập nhật ở lần end-day tiếp theo
+  }
+
   /// Kết thúc một ngày chơi (hết thời gian hoặc người chơi bấm), trả về điểm sao 0..3.
+  /// Kid-friendly: cần chút nỗ lực (≥25% thời lượng, có dùng công cụ, tăng trưởng nhẹ).
   int endDayAndScore() {
-    // Đánh giá theo health trung bình cuối ngày + số chỉ số trong band.
     final bands = stageConfig.bands;
     final inBandCount = [
       bands[statWater]!.contains(stats.water),
@@ -382,22 +400,39 @@ class PlantState {
       bands[statClean]!.contains(stats.clean),
     ].where((e) => e).length;
 
-    final h = stats.health; // 0..100
+    final hLast = stats.health;
+    final avgHealth = _samplesToday > 0 ? (_healthSumToday / _samplesToday) : hLast;
+    final timeRatio = timeRatioToday;     // 0..1
+    final growthDelta = growthDeltaToday; // so với đầu ngày
+
+    const minTimeRatio = 0.25; // chơi ít nhất 25% thời lượng ngày
+    const minGrowth = 1.5;     // growth tăng tối thiểu để được tính sao
+
+    final early = timeRatio < minTimeRatio;
+    final noTool = _toolUsesToday == 0;
+    final noGrow = growthDelta < minGrowth;
+
+    lastDayFlaggedSpam = early || noTool;
+
     int stars = 0;
-    if (h >= 80 && inBandCount >= 3) stars = 3;
-    else if (h >= 60 && inBandCount >= 2) stars = 2;
-    else if (h >= 40 && inBandCount >= 1) stars = 1;
-    else stars = 0;
+    if (!(early || noTool || noGrow)) {
+      if (avgHealth >= 78 && inBandCount >= 3 && growthDelta >= 14) {
+        stars = 3;
+      } else if (avgHealth >= 62 && inBandCount >= 2 && growthDelta >= 7) {
+        stars = 2;
+      } else if (avgHealth >= 48 && inBandCount >= 1 && growthDelta >= 1.5) {
+        stars = 1;
+      }
+    } else {
+      stars = 0;
+    }
 
-    // ✅ PHẦN ĐÃ SỬA
-    // Tăng ngày lên trước
+    // Sang ngày mới
     dayIndex += 1;
-
-    // Chỉ reset thời gian nếu game chưa thực sự kết thúc (chưa bước qua ngày cuối)
     if (!isFinished) {
       timeLeftSec = dayLengthSec;
+      _resetDayCounters();
     }
-    // ✅ KẾT THÚC PHẦN SỬA
 
     return stars;
   }
@@ -431,7 +466,6 @@ class PlantState {
       after: applied,
     );
 
-    // Ghi lại
     switch (stat) {
       case statWater:
         stats.water = applied;
@@ -447,10 +481,10 @@ class PlantState {
         break;
     }
 
-    // Sau khi thay đổi, cập nhật health ngay để UI phản hồi nhanh
     stats.health = computeHealth(stats, stageConfig.bands);
 
     _cooldownSec[stat] = cooldownPerUseSec;
+    _toolUsesToday++; // ghi nhận 1 lần dùng công cụ thành công
     return result;
   }
 
@@ -466,10 +500,8 @@ class PlantState {
       case ToolType.nutrient:
         return _applyToStat(stat: statNutrient, baseDelta: baseNutrientPerUse * delta);
       case ToolType.pest:
-      // Bắt sâu đúng → tăng Clean
         return _applyToStat(stat: statClean, baseDelta: baseCleanPerUse * delta);
       case ToolType.prune:
-      // Tỉa đúng → tăng Clean nhẹ; có thể mở rộng logic giảm nếu tỉa quá tay trong mini-game.
         return _applyToStat(stat: statClean, baseDelta: (baseCleanPerUse * 0.8) * delta);
     }
   }

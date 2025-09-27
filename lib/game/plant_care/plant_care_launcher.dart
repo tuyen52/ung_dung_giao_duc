@@ -1,3 +1,4 @@
+// lib/game/plant_care/plant_care_game_launcher.dart
 import 'dart:convert';
 import 'package:flutter/material.dart';
 
@@ -86,7 +87,7 @@ class _PlantCareGameLauncherState extends State<PlantCareGameLauncher> {
     if (_gp != null && _gp!.deck.isNotEmpty) {
       _initialStateMap = _decodeState(_gp!.deck.first);
     }
-    setState(() => _loading = false);
+    if (mounted) setState(() => _loading = false);
   }
 
   Future<void> _saveSnapshot({
@@ -103,7 +104,7 @@ class _PlantCareGameLauncherState extends State<PlantCareGameLauncher> {
       difficulty: diffInt,
       deck: <String>[_encodeState(state)], // lưu state JSON
       index: dayIndex,
-      correct: stars, // tổng sao tham khảo
+      correct: stars, // tổng sao tích luỹ
       wrong: 0,
       timeLeft: timeLeftSec,
       updatedAt: DateTime.now().toIso8601String(),
@@ -115,23 +116,24 @@ class _PlantCareGameLauncherState extends State<PlantCareGameLauncher> {
     await _progress.clear(widget.treId, _kPlantCareGameId);
   }
 
+  /// Kid-friendly: mỗi sao +8 điểm, mỗi “ngày kết thúc sớm/không chơi” trừ 5.
+  /// Không để điểm âm.
   int _computeScore(int correct, int wrong) {
-    // Nếu game khác dùng công thức khác, copy đúng công thức đó vào đây.
-    final score = correct * 20 - wrong * 10;
+    final score = correct * 8 - wrong * 5;
     return score < 0 ? 0 : score;
   }
 
   Future<void> _finishAndShowResult(int correct, int wrong) async {
-    // Lưu phiên & thưởng giống hệ thống chung
+    // Lưu phiên & thưởng theo hệ thống chung
     await GameSessionService().saveAndReward(
       treId: widget.treId,
       gameId: _kPlantCareGameId,
-      gameName: 'Chăm Sóc Cây Trồng', // ✅ THÊM THAM SỐ BẮT BUỘC
+      gameName: 'Chăm Sóc Cây Trồng',
       difficulty: (_gp?.difficulty ??
           _difficultyToInt(_mapGameDifficulty(widget.difficulty)))
           .toString(),
-      correct: correct,
-      wrong: wrong,
+      correct: correct, // tổng sao
+      wrong: wrong,     // số “ngày spam/kết thúc sớm”
     );
 
     final score = _computeScore(correct, wrong);
@@ -164,11 +166,11 @@ class _PlantCareGameLauncherState extends State<PlantCareGameLauncher> {
       handbookContent: const _PlantHelpSheet(),
       showHandbookOnStart: false,
 
-      // Gọi public method của PlayScreen qua key (đúng khung của bạn)
+      // Gọi public method của PlayScreen qua key
       onFinishAndExit: () => (_playKey.currentState as dynamic?)?.finishGame(),
       onSaveAndExit: () => (_playKey.currentState as dynamic?)?.outToHome(),
 
-      // ✅ KẾT NỐI SỰ KIỆN onRestart TẠI ĐÂY
+      // Kết nối onRestart
       onRestart: () => (_playKey.currentState as dynamic?)?.restartGame(),
 
       builder: (context, bool isPaused) {
@@ -180,12 +182,13 @@ class _PlantCareGameLauncherState extends State<PlantCareGameLauncher> {
           dayLengthSec: widget.dayLengthSec,
           initialStateMap: _initialStateMap,
 
-          // Khi người chơi KẾT THÚC (hoặc game kết thúc tự nhiên)
+          // Khi người chơi kết thúc ván (PlayScreen sẽ truyền tổng sao & tổng ngày spam)
           onFinish: (int correct, int wrong) =>
               WidgetsBinding.instance.addPostFrameCallback(
-                      (_) => _finishAndShowResult(correct, wrong)),
+                    (_) => _finishAndShowResult(correct, wrong),
+              ),
 
-          // Lưu tiến độ (hết ngày hoặc Save & Exit)
+          // Lưu tiến độ (mỗi khi hết ngày hoặc Save & Exit)
           onSaveProgress: ({
             required Map<String, dynamic> state,
             required int dayIndex,
@@ -212,21 +215,21 @@ class _PlantHelpSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Định nghĩa các kiểu chữ với kích thước cố định, tương tự file tham khảo
-    const double baseFontSize = 15.0; // Cỡ chữ cơ bản
-    const double headingFontSize = 17.0; // Cỡ chữ cho tiêu đề mục
-    const double titleFontSize = 19.0;   // Cỡ chữ cho tiêu đề chính
+    // Kiểu chữ cố định, thân thiện với trẻ
+    const double baseFontSize = 15.0;
+    const double headingFontSize = 17.0;
+    const double titleFontSize = 19.0;
 
     final titleStyle = TextStyle(
       fontSize: titleFontSize,
       fontWeight: FontWeight.bold,
-      color: const Color(0xFF2E7D32), // Màu xanh lá cây đậm
+      color: const Color(0xFF2E7D32),
     );
     final headingStyle = TextStyle(
       fontSize: headingFontSize,
       fontWeight: FontWeight.bold,
     );
-    final bodyStyle = TextStyle(
+    final bodyStyle = const TextStyle(
       fontSize: baseFontSize,
       height: 1.5,
     );
@@ -234,12 +237,7 @@ class _PlantHelpSheet extends StatelessWidget {
     final italicBodyStyle = bodyStyle.copyWith(fontStyle: FontStyle.italic);
 
     Widget buildRichText(List<TextSpan> spans) {
-      return RichText(
-        text: TextSpan(
-          style: bodyStyle,
-          children: spans,
-        ),
-      );
+      return RichText(text: TextSpan(style: bodyStyle, children: spans));
     }
 
     return SafeArea(
@@ -250,13 +248,11 @@ class _PlantHelpSheet extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(
-                child: Text('Bí kíp Chăm Cây Vui Vẻ', style: titleStyle),
-              ),
+              Center(child: Text('Bí kíp Chăm Cây Vui Vẻ', style: titleStyle)),
               const SizedBox(height: 12),
               Center(
                 child: Text(
-                  'Chào mừng bạn nhỏ! Cùng giúp một hạt mầm lớn thật nhanh và ra hoa rực rỡ nhé!',
+                  'Chào mừng bạn nhỏ! Cùng giúp hạt mầm lớn nhanh và ra hoa rực rỡ nhé!',
                   style: italicBodyStyle,
                   textAlign: TextAlign.center,
                 ),
@@ -266,46 +262,33 @@ class _PlantHelpSheet extends StatelessWidget {
               Text('1. Làm sao để cây luôn VUI VẺ? ❤️', style: headingStyle),
               const SizedBox(height: 8),
               buildRichText([
-                const TextSpan(text: '• Cây của bạn có 4 nhu cầu quan trọng: '),
+                const TextSpan(text: '• Cây có 4 nhu cầu quan trọng: '),
                 TextSpan(
-                    text: 'Nước 💧, Ánh sáng ☀️, Phân bón 🌿, và được Sạch sẽ 🐞.\n',
+                    text: 'Nước 💧, Ánh sáng ☀️, Phân bón 🌿, và Sạch sẽ 🐞.\n',
                     style: boldBodyStyle),
-                const TextSpan(
-                    text:
-                    '• Hãy để ý các thanh nhu cầu này. Cố gắng giữ chúng luôn nằm trong '),
+                const TextSpan(text: '• Cố gắng giữ chúng trong '),
                 TextSpan(text: '"Vùng Vàng" ', style: boldBodyStyle),
-                const TextSpan(text: 'nhé.\n'),
-                const TextSpan(
-                    text:
-                    '• Khi đó, cây sẽ rất vui, khỏe mạnh và lớn rất nhanh!'),
+                const TextSpan(text: 'nhé! Khi đó cây sẽ vui và lớn nhanh!'),
               ]),
               const SizedBox(height: 24),
 
-              Text('2. Phải làm gì để chăm cây?', style: headingStyle),
+              Text('2. Chăm cây bằng cách nào?', style: headingStyle),
               const SizedBox(height: 8),
               buildRichText([
-                const TextSpan(
-                    text:
-                    '• Rất đơn giản! Hãy bấm vào các nút công cụ ở phía dưới màn hình.\n'),
-                const TextSpan(text: '• Mỗi nút bấm sẽ mở ra một '),
+                const TextSpan(text: '• Chạm các nút công cụ phía dưới màn hình.\n'),
                 TextSpan(
-                    text: 'trò chơi nhỏ (mini-game) ', style: boldBodyStyle),
-                const TextSpan(text: 'thú vị.\n'),
-                const TextSpan(
-                    text:
-                    '• Chơi thật giỏi sẽ giúp cây được đáp ứng nhu cầu ngay lập tức!'),
+                    text: '• Mỗi nút mở một trò chơi nhỏ ', style: boldBodyStyle),
+                const TextSpan(text: 'vui lắm đó!\n'),
+                const TextSpan(text: '• Chơi giỏi sẽ giúp cây được đáp ứng ngay!'),
               ]),
               const SizedBox(height: 24),
 
-              Text('3. Phần thưởng lấp lánh!', style: headingStyle),
+              Text('3. Mẹo để nhận SAO ✨', style: headingStyle),
               const SizedBox(height: 8),
               buildRichText([
-                const TextSpan(
-                    text:
-                    '• Cuối mỗi ngày, nếu bạn chăm cây tốt, bạn sẽ được thưởng những ngôi '),
-                TextSpan(text: 'Sao ★ ', style: boldBodyStyle),
-                const TextSpan(text: 'lấp lánh.\n'),
-                const TextSpan(text: '• Càng nhiều sao, điểm của bạn sẽ càng cao!'),
+                const TextSpan(text: '• Hãy chơi ít nhất một lúc (khoảng 1/4 thời gian).\n'),
+                const TextSpan(text: '• Dùng công cụ giúp cây và nhìn cây lớn hơn nhé!\n'),
+                const TextSpan(text: '• Càng giữ “Vùng xanh” tốt, sao càng nhiều!'),
               ]),
               const SizedBox(height: 24),
             ],

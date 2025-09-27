@@ -50,9 +50,7 @@ class _TimeScreenState extends State<TimeScreen> with SingleTickerProviderStateM
               onSurface: Colors.black,
             ),
             textButtonTheme: TextButtonThemeData(
-              style: TextButton.styleFrom(
-                textStyle: GoogleFonts.quicksand(),
-              ),
+              style: TextButton.styleFrom(textStyle: GoogleFonts.quicksand()),
             ),
           ),
           child: child!,
@@ -71,12 +69,7 @@ class _TimeScreenState extends State<TimeScreen> with SingleTickerProviderStateM
     final mm = target.minute.toString().padLeft(2, '0');
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Đã đặt giờ đăng xuất vào $hh:$mm',
-          style: GoogleFonts.quicksand(),
-        ),
-      ),
+      SnackBar(content: Text('Đã đặt giờ đăng xuất vào $hh:$mm', style: GoogleFonts.quicksand())),
     );
     setState(() {});
   }
@@ -84,17 +77,11 @@ class _TimeScreenState extends State<TimeScreen> with SingleTickerProviderStateM
   void _cancelAlarm() {
     AlarmService.instance.cancel();
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Đã huỷ giờ đăng xuất',
-          style: GoogleFonts.quicksand(),
-        ),
-      ),
+      SnackBar(content: Text('Đã huỷ giờ đăng xuất', style: GoogleFonts.quicksand())),
     );
     setState(() {});
   }
 
-  // GIỮ NGUYÊN CÁC HÀM HELPER
   Widget _buildTimeDisplay(BuildContext context, TimeOfDay time) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 40),
@@ -119,7 +106,7 @@ class _TimeScreenState extends State<TimeScreen> with SingleTickerProviderStateM
           color: Colors.white,
           shadows: [
             Shadow(
-              offset: Offset(2, 2),
+              offset: const Offset(2, 2),
               blurRadius: 4.0,
               color: Colors.black.withOpacity(0.3),
             ),
@@ -150,11 +137,7 @@ class _TimeScreenState extends State<TimeScreen> with SingleTickerProviderStateM
             icon: Icon(icon, color: Colors.white),
             label: Text(
               label,
-              style: GoogleFonts.quicksand(
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-                color: Colors.white,
-              ),
+              style: GoogleFonts.quicksand(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white),
             ),
             style: ElevatedButton.styleFrom(
               minimumSize: const Size.fromHeight(52),
@@ -178,16 +161,15 @@ class _TimeScreenState extends State<TimeScreen> with SingleTickerProviderStateM
     return '${day.day}/${day.month}/${day.year}';
   }
 
-  // ==================== CÁC HÀM DỰNG GIAO DIỆN MỚI ====================
-
-  // HÀM DỰNG GIAO DIỆN MÀN HÌNH DỌC (CODE CŨ CỦA BẠN)
+  // ---------------- Portrait ----------------
   Widget _buildPortraitLayout() {
     final target = AlarmService.instance.target;
     final targetText = (target == null)
         ? 'Chưa đặt'
         : '${target.hour.toString().padLeft(2, '0')}:${target.minute.toString().padLeft(2, '0')} (${_friendlyDay(target)})';
 
-    return Container(
+    // Dùng LayoutBuilder + ConstrainedBox để nền luôn cao >= viewport
+    return DecoratedBox(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           colors: [Color(0xFF8EC5FC), Color(0xFFE0C3FC)],
@@ -196,64 +178,97 @@ class _TimeScreenState extends State<TimeScreen> with SingleTickerProviderStateM
         ),
       ),
       child: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const SizedBox(height: 20),
-                Icon(Icons.watch_later_outlined, size: 80, color: Colors.white.withOpacity(0.8)),
-                const SizedBox(height: 16),
-                Text(
-                  'Cài đặt giờ giới hạn',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.quicksand(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    shadows: [Shadow(offset: Offset(2, 2), blurRadius: 4.0, color: Colors.black.withOpacity(0.2))],
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const SizedBox(height: 20),
+                      Icon(Icons.watch_later_outlined, size: 80, color: Colors.white.withOpacity(0.8)),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Cài đặt giờ giới hạn',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.quicksand(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          shadows: [
+                            Shadow(
+                              offset: const Offset(2, 2),
+                              blurRadius: 4.0,
+                              color: Colors.black.withOpacity(0.2),
+                            )
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      _buildTimeDisplay(context, _selected),
+                      const SizedBox(height: 30),
+                      _buildButton(
+                        onPressed: _pickTime,
+                        label: 'Chọn giờ',
+                        icon: Icons.access_time_filled,
+                        color: const Color(0xFFFFA726),
+                      ),
+                      const SizedBox(height: 16),
+                      _buildButton(
+                        onPressed: _setAlarm,
+                        label: 'ĐẶT GIỜ THOÁT',
+                        icon: Icons.notifications_active,
+                        color: const Color(0xFF66BB6A),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildButton(
+                        onPressed: _cancelAlarm,
+                        label: 'Huỷ giờ',
+                        icon: Icons.cancel_schedule_send,
+                        color: const Color(0xFFEF5350),
+                      ),
+                      const SizedBox(height: 30),
+                      Card(
+                        elevation: 6,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.info_outline, color: Color(0xFF6A1B9A), size: 30),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  'Thời điểm đăng xuất dự kiến:\n$targetText',
+                                  style: GoogleFonts.quicksand(color: const Color(0xFF666666)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 48),
+                      Text(
+                        'Lưu ý: Đến đúng giờ đã đặt, ứng dụng sẽ thông báo ngắn và tự đăng xuất về màn Đăng nhập.',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.quicksand(color: Colors.white.withOpacity(0.8)),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 24),
-                _buildTimeDisplay(context, _selected),
-                const SizedBox(height: 30),
-                _buildButton(onPressed: _pickTime, label: 'Chọn giờ', icon: Icons.access_time_filled, color: const Color(0xFFFFA726)),
-                const SizedBox(height: 16),
-                _buildButton(onPressed: _setAlarm, label: 'ĐẶT GIỜ THOÁT', icon: Icons.notifications_active, color: const Color(0xFF66BB6A)),
-                const SizedBox(height: 8),
-                _buildButton(onPressed: _cancelAlarm, label: 'Huỷ giờ', icon: Icons.cancel_schedule_send, color: const Color(0xFFEF5350)),
-                const SizedBox(height: 30),
-                Card(
-                  elevation: 6,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      children: [
-                        Icon(Icons.info_outline, color: const Color(0xFF6A1B9A), size: 30),
-                        const SizedBox(width: 12),
-                        Expanded(child: Text('Thời điểm đăng xuất dự kiến:\n$targetText', style: GoogleFonts.quicksand(color: const Color(0xFF666666)))),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 48),
-                Text(
-                  'Lưu ý: Đến đúng giờ đã đặt, ứng dụng sẽ thông báo ngắn và tự đăng xuất về màn Đăng nhập.',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.quicksand(color: Colors.white.withOpacity(0.8)),
-                ),
-                const SizedBox(height: 12),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
       ),
     );
   }
 
-  // HÀM DỰNG GIAO DIỆN MÀN HÌNH NGANG (MỚI)
+  // ---------------- Landscape ----------------
   Widget _buildLandscapeLayout() {
     final target = AlarmService.instance.target;
     final targetText = (target == null)
@@ -261,6 +276,8 @@ class _TimeScreenState extends State<TimeScreen> with SingleTickerProviderStateM
         : '${target.hour.toString().padLeft(2, '0')}:${target.minute.toString().padLeft(2, '0')} (${_friendlyDay(target)})';
 
     return Container(
+      // ép full kích thước vùng body của Scaffold
+      constraints: const BoxConstraints.expand(),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           colors: [Color(0xFF8EC5FC), Color(0xFFE0C3FC)],
@@ -274,7 +291,6 @@ class _TimeScreenState extends State<TimeScreen> with SingleTickerProviderStateM
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // ====== CỘT BÊN TRÁI ======
               Expanded(
                 child: SingleChildScrollView(
                   child: Column(
@@ -282,11 +298,7 @@ class _TimeScreenState extends State<TimeScreen> with SingleTickerProviderStateM
                     children: [
                       Text(
                         'Giờ đã chọn:',
-                        style: GoogleFonts.quicksand(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
+                        style: GoogleFonts.quicksand(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
                       ),
                       const SizedBox(height: 16),
                       _buildTimeDisplay(context, _selected),
@@ -307,41 +319,33 @@ class _TimeScreenState extends State<TimeScreen> with SingleTickerProviderStateM
                   ),
                 ),
               ),
-              const SizedBox(width: 20), // Khoảng cách giữa 2 cột
-
-              // ====== CỘT BÊN PHẢI ======
+              const SizedBox(width: 20),
               Expanded(
                 child: SingleChildScrollView(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // Nút "Chọn giờ"
                       _buildButton(
                         onPressed: _pickTime,
-                        label: 'Chọn giờ', // Giữ nguyên
+                        label: 'Chọn giờ',
                         icon: Icons.access_time_filled,
-                        color: const Color(0xFFFFA726), // <<< THAY ĐỔI MÀU NÀY
+                        color: const Color(0xFFFFA726),
                       ),
                       const SizedBox(height: 16),
-
-                      // Nút "Đặt giờ thoát"
                       _buildButton(
                         onPressed: _setAlarm,
-                        label: 'ĐẶT GIỜ THOÁT', // <<< THAY ĐỔI TEXT
+                        label: 'ĐẶT GIỜ THOÁT',
                         icon: Icons.notifications_active,
-                        color: const Color(0xFF66BB6A), // <<< THAY ĐỔI MÀU NÀY
+                        color: const Color(0xFF66BB6A),
                       ),
                       const SizedBox(height: 16),
-
-                      // Nút "Huỷ"
                       _buildButton(
                         onPressed: _cancelAlarm,
-                        label: 'Huỷ giờ', // <<< THAY ĐỔI TEXT
+                        label: 'Huỷ giờ',
                         icon: Icons.cancel_schedule_send,
-                        color: const Color(0xFFEF5350), // <<< THAY ĐỔI MÀU NÀY
+                        color: const Color(0xFFEF5350),
                       ),
-
                       const SizedBox(height: 24),
                       Text(
                         'Lưu ý: Đến đúng giờ đã đặt, ứng dụng sẽ tự đăng xuất.',
@@ -359,18 +363,13 @@ class _TimeScreenState extends State<TimeScreen> with SingleTickerProviderStateM
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(
           'Giờ Giới Hạn',
-          style: GoogleFonts.quicksand(
-            fontSize: 24,
-            fontWeight: FontWeight.w800,
-            color: Colors.white,
-          ),
+          style: GoogleFonts.quicksand(fontSize: 24, fontWeight: FontWeight.w800, color: Colors.white),
         ),
         centerTitle: true,
         backgroundColor: Colors.transparent,
@@ -385,14 +384,12 @@ class _TimeScreenState extends State<TimeScreen> with SingleTickerProviderStateM
           ),
         ),
       ),
-      // SỬ DỤNG ORIENTATION BUILDER TẠI ĐÂY
+      // body sẽ nhận widget theo định hướng
       body: OrientationBuilder(
         builder: (context, orientation) {
-          if (orientation == Orientation.portrait) {
-            return _buildPortraitLayout();
-          } else {
-            return _buildLandscapeLayout();
-          }
+          return orientation == Orientation.portrait
+              ? _buildPortraitLayout()
+              : _buildLandscapeLayout();
         },
       ),
     );

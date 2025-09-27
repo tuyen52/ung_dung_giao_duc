@@ -10,6 +10,7 @@ class RewardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: Text(
           'Điểm Thưởng Của Bé',
@@ -23,61 +24,45 @@ class RewardScreen extends StatelessWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                Color(0xFF8EC5FC),
-                Color(0xFFE0C3FC),
-              ],
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-            ),
-          ),
-        ),
       ),
       body: Container(
+        constraints: const BoxConstraints.expand(), // phủ full màn hình (hết hở nền)
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [
-              Color(0xFF8EC5FC),
-              Color(0xFFE0C3FC),
-            ],
+            colors: [Color(0xFF8EC5FC), Color(0xFFE0C3FC)],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
         ),
-        child: StreamBuilder<Reward?>(
-          stream: RewardService().watchReward(treId),
-          builder: (context, snap) {
-            if (snap.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator(color: Colors.white));
-            }
-            final reward = snap.data ?? Reward(treId: treId);
+        child: SafeArea(
+          child: StreamBuilder<Reward?>(
+            stream: RewardService().watchReward(treId),
+            builder: (context, snap) {
+              if (snap.connectionState == ConnectionState.waiting) {
+                return const Center(
+                  child: CircularProgressIndicator(color: Colors.white),
+                );
+              }
+              final reward = snap.data ?? Reward(treId: treId);
 
-            return RefreshIndicator(
-              onRefresh: () async {
-                await Future.delayed(const Duration(seconds: 1));
-              },
-              child: OrientationBuilder(
-                builder: (context, orientation) {
-                  if (orientation == Orientation.landscape) {
-                    // Trả về giao diện cho màn hình ngang với bố cục mới
-                    return _buildLandscapeLayout(context, reward);
-                  } else {
-                    // Trả về giao diện cho màn hình đứng
-                    return _buildPortraitLayout(context, reward);
-                  }
-                },
-              ),
-            );
-          },
+              return RefreshIndicator(
+                onRefresh: () async => Future.delayed(const Duration(seconds: 1)),
+                child: OrientationBuilder(
+                  builder: (context, orientation) {
+                    return orientation == Orientation.landscape
+                        ? _buildLandscapeLayout(context, reward)
+                        : _buildPortraitLayout(context, reward);
+                  },
+                ),
+              );
+            },
+          ),
         ),
       ),
     );
   }
 
-  // Giao diện cho màn hình đứng (Portrait)
+  // -------- Portrait --------
   Widget _buildPortraitLayout(BuildContext context, Reward reward) {
     return ListView(
       padding: const EdgeInsets.all(24),
@@ -92,38 +77,35 @@ class RewardScreen extends StatelessWidget {
     );
   }
 
-  // *** BẮT ĐẦU PHẦN MỚI: GIAO DIỆN NGANG VỚI BỐ CỤC 2 HÀNG ***
+  // -------- Landscape --------
   Widget _buildLandscapeLayout(BuildContext context, Reward reward) {
-    return SingleChildScrollView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        // Cấu trúc chính là một cột
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Hàng trên cùng chứa Điểm và Huy chương
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Thẻ điểm chiếm 1 nửa bên trái
-              Expanded(
-                child: _buildScoreCard(context, reward),
-              ),
-              const SizedBox(width: 24),
-              // Thẻ huy chương chiếm 1 nửa bên phải
-              Expanded(
-                child: _buildMedalCard(reward),
-              ),
-            ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: _buildScoreCard(context, reward)),
+                    const SizedBox(width: 24),
+                    Expanded(child: _buildMedalCard(reward)),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                _buildInfoCard(context, reward),
+              ],
+            ),
           ),
-          const SizedBox(height: 24),
-          // Hàng dưới cùng chứa thông tin chi tiết
-          _buildInfoCard(context, reward),
-        ],
-      ),
+        );
+      },
     );
   }
-  // *** KẾT THÚC PHẦN MỚI ***
 
   Widget _buildScoreCard(BuildContext context, Reward reward) {
     return Card(
@@ -132,17 +114,14 @@ class RewardScreen extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-            colors: [
-              Color(0xFFFFA726),
-              Color(0xFFFFCC80),
-            ],
+            colors: [Color(0xFFFFA726), Color(0xFFFFCC80)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(25),
           boxShadow: [
             BoxShadow(
-              color: Colors.orange.withOpacity(0.5),
+              color: Colors.orange.withValues(alpha: 0.5), // thay cho withOpacity
               blurRadius: 15,
               offset: const Offset(0, 8),
             ),
@@ -163,7 +142,7 @@ class RewardScreen extends StatelessWidget {
                 shadows: [
                   Shadow(
                     blurRadius: 8.0,
-                    color: Colors.black.withOpacity(0.4),
+                    color: Colors.black.withValues(alpha: 0.4),
                     offset: const Offset(3, 3),
                   ),
                 ],
@@ -189,7 +168,7 @@ class RewardScreen extends StatelessWidget {
       elevation: 8,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.fromLTRB(24, 24, 24, 28), // << đúng cú pháp
         child: Column(
           children: [
             Text(
@@ -261,10 +240,7 @@ class RewardScreen extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           label,
-          style: GoogleFonts.balsamiqSans(
-            fontSize: 16,
-            color: Colors.grey[800],
-          ),
+          style: GoogleFonts.balsamiqSans(fontSize: 16, color: Colors.grey[800]),
         ),
         Text(
           "$count",

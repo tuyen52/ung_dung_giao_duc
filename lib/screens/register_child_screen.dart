@@ -44,15 +44,16 @@ class _RegisterChildScreenState extends State<RegisterChildScreen> {
         );
       },
     );
+    if (!mounted) return;
     if (picked != null && picked != _selectedNgaySinh) {
-      setState(() {
-        _selectedNgaySinh = picked;
-      });
+      setState(() => _selectedNgaySinh = picked);
     }
   }
 
   Future<void> _save() async {
-    if (!_formKey.currentState!.validate() || _selectedGioiTinh == null || _selectedNgaySinh == null) {
+    if (!_formKey.currentState!.validate() ||
+        _selectedGioiTinh == null ||
+        _selectedNgaySinh == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Vui lòng điền đầy đủ thông tin bắt buộc.')),
       );
@@ -100,6 +101,8 @@ class _RegisterChildScreenState extends State<RegisterChildScreen> {
         ),
       ),
       body: Container(
+        // >>> ép nền phủ full viewport (fix hở nền)
+        constraints: const BoxConstraints.expand(),
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             colors: [Color(0xFF8EC5FC), Color(0xFFE0C3FC)],
@@ -107,71 +110,67 @@ class _RegisterChildScreenState extends State<RegisterChildScreen> {
             end: Alignment.bottomCenter,
           ),
         ),
-        child: OrientationBuilder(
-          builder: (context, orientation) {
-            if (orientation == Orientation.landscape) {
-              return _buildLandscapeLayout();
-            }
-            return _buildPortraitLayout();
-          },
+        child: SafeArea(
+          child: OrientationBuilder(
+            builder: (context, orientation) {
+              return orientation == Orientation.landscape
+                  ? _buildLandscapeLayout()
+                  : _buildPortraitLayout();
+            },
+          ),
         ),
       ),
     );
   }
 
-  // --- WIDGET GIAO DIỆN DỌC - ĐÃ CẬP NHẬT ---
+  // ---------- Portrait ----------
   Widget _buildPortraitLayout() {
-    return SafeArea(
-      child: SingleChildScrollView(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            // Đảm bảo chiều cao tối thiểu bằng chiều cao của viewport
-            minHeight: MediaQuery.of(context).size.height -
-                MediaQuery.of(context).padding.top,
-          ),
-          child: IntrinsicHeight(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          child: ConstrainedBox(
+            // đảm bảo nội dung cao >= chiều cao viewport
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
             child: Column(
               children: [
                 _buildHeader(),
                 const SizedBox(height: 25),
                 _buildForm(),
-                // Spacer giờ sẽ hoạt động đúng, đẩy form lên trên
-                const Spacer(),
+                const SizedBox(height: 24), // thay Spacer để tránh co rút
               ],
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
-  // Widget cho layout xoay ngang (không thay đổi)
+  // ---------- Landscape ----------
   Widget _buildLandscapeLayout() {
-    return SafeArea(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            flex: 2,
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                child: _buildHeader(),
-              ),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          flex: 2,
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20.0),
+              child: _buildHeader(),
             ),
           ),
-          Expanded(
-            flex: 3,
-            child: SingleChildScrollView(
-              child: _buildForm(),
-            ),
+        ),
+        Expanded(
+          flex: 3,
+          child: SingleChildScrollView(
+            child: _buildForm(),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
-  // Widget chứa phần Header (không thay đổi)
+  // ---------- Header ----------
   Widget _buildHeader() {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -194,16 +193,12 @@ class _RegisterChildScreenState extends State<RegisterChildScreen> {
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 15),
-        const Icon(
-          Icons.child_care_rounded,
-          size: 100,
-          color: Colors.white,
-        ),
+        const Icon(Icons.child_care_rounded, size: 100, color: Colors.white),
       ],
     );
   }
 
-  // Widget chứa Form nhập liệu (không thay đổi)
+  // ---------- Form ----------
   Widget _buildForm() {
     return Container(
       padding: const EdgeInsets.all(24),
@@ -227,7 +222,8 @@ class _RegisterChildScreenState extends State<RegisterChildScreen> {
               controller: _hoTenCtrl,
               labelText: 'Họ và Tên',
               icon: Icons.person_outline,
-              validator: (v) => (v == null || v.trim().isEmpty) ? 'Họ tên không được để trống' : null,
+              validator: (v) =>
+              (v == null || v.trim().isEmpty) ? 'Họ tên không được để trống' : null,
             ),
             const SizedBox(height: 16),
             _buildGioiTinhDropdown(),
@@ -246,7 +242,8 @@ class _RegisterChildScreenState extends State<RegisterChildScreen> {
                 onPressed: _busy ? null : _save,
                 icon: _busy
                     ? const SizedBox(
-                  width: 24, height: 24,
+                  width: 24,
+                  height: 24,
                   child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
                 )
                     : const Icon(Icons.save, color: Colors.white),
@@ -274,7 +271,7 @@ class _RegisterChildScreenState extends State<RegisterChildScreen> {
     );
   }
 
-  // Các widget con không thay đổi
+  // ---------- Field helpers ----------
   Widget _buildTextField({
     required TextEditingController controller,
     required String labelText,
@@ -312,17 +309,15 @@ class _RegisterChildScreenState extends State<RegisterChildScreen> {
           child: Text(value, style: GoogleFonts.balsamiqSans()),
         );
       }).toList(),
-      onChanged: (newValue) {
-        setState(() {
-          _selectedGioiTinh = newValue;
-        });
-      },
+      onChanged: (newValue) => setState(() => _selectedGioiTinh = newValue),
       validator: (v) => (v == null) ? 'Vui lòng chọn giới tính' : null,
       decoration: InputDecoration(
         labelText: 'Giới Tính',
         labelStyle: GoogleFonts.balsamiqSans(color: Colors.grey[700]),
         prefixIcon: Icon(
-          _selectedGioiTinh == 'Nam' ? Icons.boy : (_selectedGioiTinh == 'Nữ' ? Icons.girl : Icons.wc_outlined),
+          _selectedGioiTinh == 'Nam'
+              ? Icons.boy
+              : (_selectedGioiTinh == 'Nữ' ? Icons.girl : Icons.wc_outlined),
           color: const Color(0xFFBA68C8),
         ),
         border: OutlineInputBorder(

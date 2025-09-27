@@ -174,7 +174,6 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
     if (_state.isFinished && !_finishNotified) {
       _finishNotified = true;
       // Thêm một độ trễ nhỏ để tránh cảm giác chuyển cảnh đột ngột
-      await Future.delayed(const Duration(milliseconds: 200));
       if (mounted) {
         finishGame();
       }

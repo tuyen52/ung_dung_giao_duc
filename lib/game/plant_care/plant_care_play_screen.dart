@@ -1,5 +1,3 @@
-// lib/game/plant_care/plant_care_play_screen.dart
-
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -54,7 +52,7 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
   double _accum = 0.0;
   bool _finishNotified = false;
   int _sumStars = 0;
-  int _spamDays = 0; // ngày bị coi là kết thúc sớm/không chơi (phạt nhẹ)
+  int _spamDays = 0; // ngày bị coi là kết thúc sớm/không chơi
   late final int _rngSalt;
 
   @override
@@ -95,7 +93,7 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
     super.dispose();
   }
 
-  // Helper: chạy 1 tác vụ trong trạng thái pause để tránh decay/grow nền.
+  // Chạy 1 tác vụ trong trạng thái pause để tránh decay/grow nền.
   Future<T?> _runPaused<T>(Future<T?> Function() op) async {
     _state.setPaused(true);
     if (mounted) setState(() {});
@@ -113,7 +111,7 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
     _ticker?.cancel();
     await widget.onClearProgress();
     if (!mounted) return;
-    widget.onFinish(_sumStars, _spamDays); // truyền cả số ngày spam
+    widget.onFinish(_sumStars, _spamDays);
   }
 
   Future<void> outToHome() async {
@@ -226,7 +224,7 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
     if (confirm ?? false) {
       if (!mounted) return;
       setState(() {
-        _state.timeLeftSec = 0; // để chạy _onDayEnd
+        _state.timeLeftSec = 0; // kích hoạt _onDayEnd
       });
     }
   }
@@ -245,6 +243,7 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
     return m;
   }
 
+  // KHÔNG ép targetLow >= 0.5; chỉ giữ trong [0..1] và min-width.
   ({double low, double high}) _dailyBand({
     required Band band,
     required int seed,
@@ -256,26 +255,21 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
     final baseHigh = band.high / 100.0;
     final baseCenter = (baseLow + baseHigh) / 2.0;
     final baseHalf = (baseHigh - baseLow) / 2.0;
+
     final rnd = math.Random(seed);
     final shift = (rnd.nextDouble() * 2 - 1) * baseHalf * shiftFactor;
     final scale = scaleMin + rnd.nextDouble() * (scaleMax - scaleMin);
+
     double center = (baseCenter + shift).clamp(0.0, 1.0);
-    double half = (baseHalf * scale).clamp(0.06, 0.25);
-    double low = center - half;
-    double high = center + half;
-    if (low < 0) {
-      high = (high - low).clamp(0.0, 1.0);
-      low = 0.0;
-    }
-    if (high > 1) {
-      low = (low - (high - 1.0)).clamp(0.0, 1.0);
-      high = 1.0;
-    }
-    const minTargetLow = 0.5;
-    if (low < minTargetLow) {
-      final offset = minTargetLow - low;
-      low += offset;
-      high = (high + offset).clamp(0.0, 1.0);
+    double half = (baseHalf * scale).clamp(0.04, 0.25);
+
+    double low = (center - half).clamp(0.0, 1.0);
+    double high = (center + half).clamp(0.0, 1.0);
+
+    if (high - low < 0.06) {
+      final mid = (low + high) / 2.0;
+      low = (mid - 0.03).clamp(0.0, 1.0);
+      high = (mid + 0.03).clamp(0.0, 1.0);
     }
     return (low: low, high: high);
   }
@@ -394,6 +388,8 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
     setState(() {});
   }
 
+  bool _hasTool(ToolType t) => _state.stageConfig.tools.contains(t);
+
   @override
   Widget build(BuildContext context) {
     final o = MediaQuery.of(context).orientation;
@@ -408,6 +404,10 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
       health: _state.stats.health,
       onEndDayPressed: _promptEndDay,
     );
+
+    // helper: chỉ vẽ vùng vàng nếu stat đang yêu cầu
+    Band bandIfRequired(String key) =>
+        cfg.requiredStats.contains(key) ? cfg.bands[key]! : const Band(0, 0);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFB),
@@ -434,21 +434,19 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
                           SizedBox(
                             width: 140,
                             child: _RightStatsPanel(
-                                stats: _state.stats, bands: cfg.bands),
+                              stats: _state.stats,
+                              bands: cfg.bands,
+                              requiredStats: cfg.requiredStats,
+                            ),
                           ),
                         ],
                       ),
                     ),
                   ),
+                  // ToolBar: luôn render 5 nút, khóa nếu chưa mở
                   _ToolBar(
                     stage: _state.stage,
-                    tools: const [
-                      ToolType.water,
-                      ToolType.light,
-                      ToolType.nutrient,
-                      ToolType.pest,
-                      ToolType.prune,
-                    ],
+                    tools: cfg.tools,
                     onUse: (t) async {
                       switch (t) {
                         case ToolType.water:
@@ -490,34 +488,40 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
                       child: Column(
                         children: [
                           GaugeRing(
-                              label: 'Nước',
-                              icon: const Icon(Icons.opacity),
-                              value: _state.stats.water,
-                              band: cfg.bands[statWater]!,
-                              size: 75),
+                            label: 'Nước',
+                            icon: const Icon(Icons.opacity),
+                            value: _state.stats.water,
+                            band: bandIfRequired(statWater),
+                            size: 75,
+                          ),
                           GaugeRing(
-                              label: 'Ánh sáng',
-                              icon: const Icon(Icons.wb_sunny),
-                              value: _state.stats.light,
-                              band: cfg.bands[statLight]!,
-                              size: 75),
+                            label: 'Ánh sáng',
+                            icon: const Icon(Icons.wb_sunny),
+                            value: _state.stats.light,
+                            band: bandIfRequired(statLight),
+                            size: 75,
+                          ),
                           GaugeRing(
-                              label: 'Dinh dưỡng',
-                              icon: const Icon(Icons.grass),
-                              value: _state.stats.nutrient,
-                              band: cfg.bands[statNutrient]!,
-                              size: 75),
+                            label: 'Dinh dưỡng',
+                            icon: const Icon(Icons.grass),
+                            value: _state.stats.nutrient,
+                            band: bandIfRequired(statNutrient),
+                            size: 75,
+                          ),
                           GaugeRing(
-                              label: 'Sạch/Bảo vệ',
-                              icon: const Icon(Icons.spa),
-                              value: _state.stats.clean,
-                              band: cfg.bands[statClean]!,
-                              size: 75),
+                            label: 'Sạch/Bảo vệ',
+                            icon: const Icon(Icons.spa),
+                            value: _state.stats.clean,
+                            band: bandIfRequired(statClean),
+                            size: 75,
+                          ),
                         ],
                       ),
                     ),
                   ),
-                  Container(
+                  // Cột nút công cụ ở landscape: luôn hiện đủ 5 nút
+                  Container
+                    (
                     padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
                     decoration: BoxDecoration(
                       color: Colors.white,
@@ -533,30 +537,45 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
                       child: Column(
                         children: [
                           ToolButton(
-                              icon: Icons.opacity,
-                              label: 'Tưới',
-                              onTap: () => _openWateringMiniGame(),
-                              size: 50),
+                            icon: Icons.opacity,
+                            label: 'Tưới',
+                            onTap: () => _openWateringMiniGame(),
+                            size: 50,
+                            disabled: !_hasTool(ToolType.water),
+                            lockedHint: 'Chưa mở ở giai đoạn này',
+                          ),
                           ToolButton(
-                              icon: Icons.wb_sunny,
-                              label: 'Ánh sáng',
-                              onTap: () => _openLightMiniGame(),
-                              size: 50),
+                            icon: Icons.wb_sunny,
+                            label: 'Ánh sáng',
+                            onTap: () => _openLightMiniGame(),
+                            size: 50,
+                            disabled: !_hasTool(ToolType.light),
+                            lockedHint: 'Chưa mở ở giai đoạn này',
+                          ),
                           ToolButton(
-                              icon: Icons.grass,
-                              label: 'Bón phân',
-                              onTap: () => _openNutrientMiniGame(),
-                              size: 50),
+                            icon: Icons.grass,
+                            label: 'Bón phân',
+                            onTap: () => _openNutrientMiniGame(),
+                            size: 50,
+                            disabled: !_hasTool(ToolType.nutrient),
+                            lockedHint: 'Chưa mở ở giai đoạn này',
+                          ),
                           ToolButton(
-                              icon: Icons.bug_report,
-                              label: 'Bắt sâu',
-                              onTap: () => _openPestMiniGame(),
-                              size: 50),
+                            icon: Icons.bug_report,
+                            label: 'Bắt sâu',
+                            onTap: () => _openPestMiniGame(),
+                            size: 50,
+                            disabled: !_hasTool(ToolType.pest),
+                            lockedHint: 'Chưa mở ở giai đoạn này',
+                          ),
                           ToolButton(
-                              icon: Icons.content_cut,
-                              label: 'Tỉa',
-                              onTap: () => _openPruneMiniGame(),
-                              size: 50),
+                            icon: Icons.content_cut,
+                            label: 'Tỉa',
+                            onTap: () => _openPruneMiniGame(),
+                            size: 50,
+                            disabled: !_hasTool(ToolType.prune),
+                            lockedHint: 'Chưa mở ở giai đoạn này',
+                          ),
                         ],
                       ),
                     ),
@@ -571,7 +590,7 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
   }
 }
 
-// ... CÁC WIDGET PHÍA DƯỚI KHÔNG THAY ĐỔI ...
+// ==== CÁC WIDGET PHỤ ====
 
 class _CuteBackground extends StatelessWidget {
   const _CuteBackground();
@@ -599,8 +618,8 @@ class _PlantCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final healthColor = Color.lerp(const Color(0xFFE53935), const Color(0xFF2E7D32), (health / 100.0).clamp(0, 1))!;
-
+    final healthColor =
+    Color.lerp(const Color(0xFFE53935), const Color(0xFF2E7D32), (health / 100.0).clamp(0, 1))!;
     return FittedBox(
       child: Container(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
@@ -655,8 +674,11 @@ class _PlantCard extends StatelessWidget {
               ]),
             ),
             const SizedBox(height: 6),
-            const Text('Giữ các chỉ số trong vùng vàng để cây khoẻ!',
-                style: TextStyle(color: Colors.black54), textAlign: TextAlign.center),
+            const Text(
+              'Giữ các chỉ số trong vùng vàng để cây khoẻ!',
+              style: TextStyle(color: Colors.black54),
+              textAlign: TextAlign.center,
+            ),
           ],
         ),
       ),
@@ -762,28 +784,52 @@ class _TopInfoBar extends StatelessWidget {
 class _RightStatsPanel extends StatelessWidget {
   final Stats stats;
   final Map<String, Band> bands;
-  const _RightStatsPanel({required this.stats, required this.bands});
+  final Set<String>? requiredStats;
+  const _RightStatsPanel({
+    required this.stats,
+    required this.bands,
+    this.requiredStats,
+  });
+
+  Band _bandIfRequired(String key) {
+    final req = requiredStats ?? {statWater, statLight, statNutrient, statClean};
+    return req.contains(key) ? bands[key]! : const Band(0, 0);
+  }
 
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       child: Column(
         children: [
-          GaugeRing(label: 'Nước', icon: const Icon(Icons.opacity), value: stats.water, band: bands[statWater]!),
-          GaugeRing(label: 'Ánh sáng', icon: const Icon(Icons.wb_sunny), value: stats.light, band: bands[statLight]!),
-          GaugeRing(label: 'Dinh dưỡng', icon: const Icon(Icons.grass), value: stats.nutrient, band: bands[statNutrient]!),
-          GaugeRing(label: 'Sạch/Bảo vệ', icon: const Icon(Icons.spa), value: stats.clean, band: bands[statClean]!),
+          GaugeRing(label: 'Nước', icon: const Icon(Icons.opacity), value: stats.water, band: _bandIfRequired(statWater)),
+          GaugeRing(label: 'Ánh sáng', icon: const Icon(Icons.wb_sunny), value: stats.light, band: _bandIfRequired(statLight)),
+          GaugeRing(label: 'Dinh dưỡng', icon: const Icon(Icons.grass), value: stats.nutrient, band: _bandIfRequired(statNutrient)),
+          GaugeRing(label: 'Sạch/Bảo vệ', icon: const Icon(Icons.spa), value: stats.clean, band: _bandIfRequired(statClean)),
         ],
       ),
     );
   }
 }
 
+// ToolBar: luôn hiện đủ 5 nút, khóa nếu chưa mở theo stage
 class _ToolBar extends StatelessWidget {
   final PlantStage stage;
-  final List<ToolType> tools;
+  final List<ToolType> tools; // từ StageConfig
   final void Function(ToolType) onUse;
   const _ToolBar({required this.stage, required this.tools, required this.onUse});
+
+  bool _isAvailable(ToolType t) => tools.contains(t);
+
+  ToolButton _btn(ToolType t, IconData icon, String label) {
+    final locked = !_isAvailable(t);
+    return ToolButton(
+      icon: icon,
+      label: label,
+      onTap: () => onUse(t),
+      disabled: locked,
+      lockedHint: 'Chưa mở ở giai đoạn này',
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -793,18 +839,16 @@ class _ToolBar extends StatelessWidget {
         color: Colors.white,
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, -2))],
       ),
-      child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-        if (tools.contains(ToolType.water))
-          ToolButton(icon: Icons.opacity, label: 'Tưới', onTap: () => onUse(ToolType.water)),
-        if (tools.contains(ToolType.light))
-          ToolButton(icon: Icons.wb_sunny, label: 'Ánh sáng', onTap: () => onUse(ToolType.light)),
-        if (tools.contains(ToolType.nutrient))
-          ToolButton(icon: Icons.grass, label: 'Bón phân', onTap: () => onUse(ToolType.nutrient)),
-        if (tools.contains(ToolType.pest))
-          ToolButton(icon: Icons.bug_report, label: 'Bắt sâu', onTap: () => onUse(ToolType.pest)),
-        if (tools.contains(ToolType.prune))
-          ToolButton(icon: Icons.content_cut, label: 'Tỉa', onTap: () => onUse(ToolType.prune)),
-      ]),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _btn(ToolType.water, Icons.opacity, 'Tưới'),
+          _btn(ToolType.light, Icons.wb_sunny, 'Ánh sáng'),
+          _btn(ToolType.nutrient, Icons.grass, 'Bón phân'),
+          _btn(ToolType.pest, Icons.bug_report, 'Bắt sâu'),
+          _btn(ToolType.prune, Icons.content_cut, 'Tỉa'),
+        ],
+      ),
     );
   }
 }

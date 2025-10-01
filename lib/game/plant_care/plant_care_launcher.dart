@@ -267,7 +267,7 @@ class _PlantHelpSheet extends StatelessWidget {
                     text: 'Nước 💧, Ánh sáng ☀️, Phân bón 🌿, và Sạch sẽ 🐞.\n',
                     style: boldBodyStyle),
                 const TextSpan(text: '• Cố gắng giữ chúng trong '),
-                TextSpan(text: '"Vùng Vàng" ', style: boldBodyStyle),
+                TextSpan(text: '"Vùng Xanh" ', style: boldBodyStyle),
                 const TextSpan(text: 'nhé! Khi đó cây sẽ vui và lớn nhanh!'),
               ]),
               const SizedBox(height: 24),

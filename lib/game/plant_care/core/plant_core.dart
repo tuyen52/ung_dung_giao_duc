@@ -79,8 +79,8 @@ class StageConfigs {
       },
       decayPerDay: const { statWater: 12, statLight: 10, statNutrient: 8, statClean: 6 },
       tools: const [ToolType.water, ToolType.light],
-      // ===== THAY ĐỔI: Tăng tốc độ tăng trưởng x1.5 =====
-      growthPerSecAtFullHealth: 0.825, // Giá trị gốc: 0.55
+      // ===== THAY ĐỔI: Tăng tốc độ tăng trưởng x2.25 =====
+      growthPerSecAtFullHealth: 1.2375, // Giá trị gốc: 0.55
       requiredStats: const { statWater, statLight },
     ),
     // CÂY CON: thêm Dinh dưỡng
@@ -93,8 +93,8 @@ class StageConfigs {
       },
       decayPerDay: const { statWater: 13, statLight: 10, statNutrient: 9, statClean: 6 },
       tools: const [ToolType.water, ToolType.light, ToolType.nutrient],
-      // ===== THAY ĐỔI: Tăng tốc độ tăng trưởng x1.5 =====
-      growthPerSecAtFullHealth: 0.9, // Giá trị gốc: 0.6
+      // ===== THAY ĐỔI: Tăng tốc độ tăng trưởng x2.25 =====
+      growthPerSecAtFullHealth: 1.35, // Giá trị gốc: 0.6
       requiredStats: const { statWater, statLight, statNutrient },
     ),
     // TRƯỞNG THÀNH: thêm Bảo vệ (mở Bắt sâu/Tỉa)
@@ -107,8 +107,8 @@ class StageConfigs {
       },
       decayPerDay: const { statWater: 14, statLight: 12, statNutrient: 10, statClean: 7 },
       tools: const [ToolType.water, ToolType.light, ToolType.nutrient, ToolType.pest, ToolType.prune],
-      // ===== THAY ĐỔI: Tăng tốc độ tăng trưởng x1.5 =====
-      growthPerSecAtFullHealth: 0.825, // Giá trị gốc: 0.55
+      // ===== THAY ĐỔI: Tăng tốc độ tăng trưởng x2.25 =====
+      growthPerSecAtFullHealth: 1.2375, // Giá trị gốc: 0.55
       requiredStats: const { statWater, statLight, statNutrient, statClean },
     ),
     // RA HOA: giữ đủ 4 chỉ số
@@ -121,8 +121,8 @@ class StageConfigs {
       },
       decayPerDay: const { statWater: 14, statLight: 12, statNutrient: 10, statClean: 8 },
       tools: const [ToolType.water, ToolType.light, ToolType.nutrient, ToolType.pest, ToolType.prune],
-      // ===== THAY ĐỔI: Tăng tốc độ tăng trưởng x1.5 =====
-      growthPerSecAtFullHealth: 0.75, // Giá trị gốc: 0.5
+      // ===== THAY ĐỔI: Tăng tốc độ tăng trưởng x2.25 =====
+      growthPerSecAtFullHealth: 1.125, // Giá trị gốc: 0.5
       requiredStats: const { statWater, statLight, statNutrient, statClean },
     ),
   };

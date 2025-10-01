@@ -1,5 +1,3 @@
-// lib/game/plant_care/plant_care_play_screen.dart
-
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -54,6 +52,7 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
   double _accum = 0.0;
   bool _finishNotified = false;
   int _sumStars = 0;
+  int _spamDays = 0; // ngày bị coi là kết thúc sớm/không chơi
   late final int _rngSalt;
 
   @override
@@ -80,11 +79,39 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
     }
   }
 
+  @override
+  void didUpdateWidget(covariant PlantCarePlayScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isPaused != widget.isPaused) {
+      _state.setPaused(widget.isPaused);
+    }
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  // Chạy 1 tác vụ trong trạng thái pause để tránh decay/grow nền.
+  Future<T?> _runPaused<T>(Future<T?> Function() op) async {
+    _state.setPaused(true);
+    if (mounted) setState(() {});
+    try {
+      return await op();
+    } finally {
+      if (!_state.isFinished) {
+        _state.setPaused(false);
+        if (mounted) setState(() {});
+      }
+    }
+  }
+
   Future<void> finishGame() async {
     _ticker?.cancel();
     await widget.onClearProgress();
     if (!mounted) return;
-    widget.onFinish(_sumStars, 0);
+    widget.onFinish(_sumStars, _spamDays);
   }
 
   Future<void> outToHome() async {
@@ -109,27 +136,13 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
         dayLengthSec: widget.dayLengthSec,
       );
       _sumStars = 0;
+      _spamDays = 0;
       _finishNotified = false;
       _accum = 0.0;
     });
     _startTicker();
   }
 
-  @override
-  void didUpdateWidget(covariant PlantCarePlayScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.isPaused != widget.isPaused) {
-      _state.setPaused(widget.isPaused);
-    }
-  }
-
-  @override
-  void dispose() {
-    _ticker?.cancel();
-    super.dispose();
-  }
-
-  // ## HÀM ĐÃ CẬP NHẬT ##
   void _startTicker() {
     _lastTick = DateTime.now();
     _ticker = Timer.periodic(const Duration(milliseconds: 200), (_) {
@@ -145,54 +158,60 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
       if (_state.timeLeftSec <= 0 && !_state.isFinished) {
         _onDayEnd();
       }
-      // KHỐI LOGIC GỌI finishGame() ĐÃ ĐƯỢC GỠ BỎ TỪ ĐÂY
-      // và chuyển vào trong hàm _onDayEnd()
       if (mounted) setState(() {});
     });
   }
 
-  // ## HÀM ĐÃ CẬP NHẬT ##
   Future<void> _onDayEnd() async {
     final stars = _state.endDayAndScore();
+    if (_state.lastDayFlaggedSpam) _spamDays++;
     _sumStars += stars;
+
     await widget.onSaveProgress(
       state: _stateMapWithSalt(),
-      dayIndex: _state.dayIndex - 1, // Lưu chỉ số ngày vừa hoàn thành
+      dayIndex: _state.dayIndex - 1, // ngày vừa hoàn thành
       stars: _sumStars,
       timeLeftSec: _state.timeLeftSec,
     );
     if (!mounted) return;
 
-    // Hiển thị dialog và đợi người chơi bấm nút
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => _DaySummaryDialog(stars: stars, stage: _state.stage),
-    );
+    await _runPaused(() async {
+      return await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => _DaySummaryDialog(stars: stars, stage: _state.stage),
+      );
+    });
 
-    // LOGIC MỚI: Sau khi dialog đóng, kiểm tra xem game đã thực sự kết thúc chưa
     if (_state.isFinished && !_finishNotified) {
       _finishNotified = true;
-      // Thêm một độ trễ nhỏ để tránh cảm giác chuyển cảnh đột ngột
-      if (mounted) {
-        finishGame();
-      }
+      if (mounted) finishGame();
     } else if (mounted) {
-      // Nếu game chưa kết thúc, chỉ cần cập nhật lại giao diện
       setState(() {});
     }
   }
 
   Future<void> _promptEndDay() async {
+    final playedPct = (_state.timeRatioToday * 100).round();
+    final playedEnough = _state.timeRatioToday >= 0.25; // khớp core
+    final usedTool = _state.hadToolUseToday;
+
+    final msg = (!playedEnough || !usedTool)
+        ? 'Nếu kết thúc sớm bây giờ, con có thể sẽ không được sao đâu nhé.\n'
+        '${playedEnough ? '' : '• Con mới chơi khoảng $playedPct% của ngày.\n'}'
+        '${usedTool ? '' : '• Con chưa dùng công cụ nào hôm nay.\n'}'
+        'Con muốn thử thêm một chút rồi hãy kết thúc chứ?'
+        : 'Con đã chăm cây khá tốt rồi. Kết thúc ngày để nhận sao nhé!';
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Kết thúc ngày?'),
-        content: const Text('Bạn có muốn kết thúc ngày hôm nay ngay bây giờ không?'),
+        content: Text(msg),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Hủy'),
+            child: const Text('Chơi tiếp'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
@@ -204,9 +223,8 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
 
     if (confirm ?? false) {
       if (!mounted) return;
-      // Đặt lại thời gian về 0 để logic _onDayEnd chạy đúng
       setState(() {
-        _state.timeLeftSec = 0;
+        _state.timeLeftSec = 0; // kích hoạt _onDayEnd
       });
     }
   }
@@ -225,6 +243,7 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
     return m;
   }
 
+  // KHÔNG ép targetLow >= 0.5; chỉ giữ trong [0..1] và min-width.
   ({double low, double high}) _dailyBand({
     required Band band,
     required int seed,
@@ -236,49 +255,44 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
     final baseHigh = band.high / 100.0;
     final baseCenter = (baseLow + baseHigh) / 2.0;
     final baseHalf = (baseHigh - baseLow) / 2.0;
+
     final rnd = math.Random(seed);
     final shift = (rnd.nextDouble() * 2 - 1) * baseHalf * shiftFactor;
     final scale = scaleMin + rnd.nextDouble() * (scaleMax - scaleMin);
+
     double center = (baseCenter + shift).clamp(0.0, 1.0);
-    double half = (baseHalf * scale).clamp(0.06, 0.25);
-    double low = center - half;
-    double high = center + half;
-    if (low < 0) {
-      high = (high - low).clamp(0.0, 1.0);
-      low = 0.0;
-    }
-    if (high > 1) {
-      low = (low - (high - 1.0)).clamp(0.0, 1.0);
-      high = 1.0;
-    }
-    const minTargetLow = 0.5;
-    if (low < minTargetLow) {
-      final offset = minTargetLow - low;
-      low += offset;
-      high = (high + offset).clamp(0.0, 1.0);
+    double half = (baseHalf * scale).clamp(0.04, 0.25);
+
+    double low = (center - half).clamp(0.0, 1.0);
+    double high = (center + half).clamp(0.0, 1.0);
+
+    if (high - low < 0.06) {
+      final mid = (low + high) / 2.0;
+      low = (mid - 0.03).clamp(0.0, 1.0);
+      high = (mid + 0.03).clamp(0.0, 1.0);
     }
     return (low: low, high: high);
   }
 
   Future<void> _openWateringMiniGame() async {
     final band = _state.stageConfig.bands[statWater]!;
-    final seed0 = (_state.dayIndex * 733) ^
-    (_state.stage.index * 997) ^
-    (widget.difficulty.index * 53);
+    final seed0 = (_state.dayIndex * 733) ^ (_state.stage.index * 997) ^ (widget.difficulty.index * 53);
     final seed = _dailySeed(seed0);
-    final tgt = _dailyBand(
-        band: band, seed: seed, shiftFactor: 0.4, scaleMin: 0.92, scaleMax: 1.08);
-    final res = await Navigator.push<WateringMiniGameResult>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => WateringMinigamePage(
+    final tgt = _dailyBand(band: band, seed: seed, shiftFactor: 0.4, scaleMin: 0.92, scaleMax: 1.08);
+    final res = await _runPaused(() async {
+      return await Navigator.push<WateringMiniGameResult>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => WateringMinigamePage(
             targetLow: tgt.low,
             targetHigh: tgt.high,
             durationSec: 15,
-            stage: _state.stage),
-        fullscreenDialog: true,
-      ),
-    );
+            stage: _state.stage,
+          ),
+          fullscreenDialog: true,
+        ),
+      );
+    });
     if (res == null) return;
     final delta = 0.8 + res.score0to1 * 2.2;
     _state.applyTool(ToolType.water, delta: delta);
@@ -288,23 +302,23 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
   Future<void> _openLightMiniGame() async {
     final band = _state.stageConfig.bands[statLight]!;
     final current = (_state.stats.light / 100.0).clamp(0.0, 1.0);
-    final seed0 = (_state.dayIndex * 131071) ^
-    (_state.stage.index * 4099) ^
-    (widget.difficulty.index * 233);
+    final seed0 = (_state.dayIndex * 131071) ^ (_state.stage.index * 4099) ^ (widget.difficulty.index * 233);
     final seed = _dailySeed(seed0);
-    final tgt = _dailyBand(
-        band: band, seed: seed, shiftFactor: 0.5, scaleMin: 0.9, scaleMax: 1.1);
-    final res = await Navigator.push<LightMiniGameResult>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => LightAdjustMinigamePage(
+    final tgt = _dailyBand(band: band, seed: seed, shiftFactor: 0.5, scaleMin: 0.9, scaleMax: 1.1);
+    final res = await _runPaused(() async {
+      return await Navigator.push<LightMiniGameResult>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => LightAdjustMinigamePage(
             targetLow: tgt.low,
             targetHigh: tgt.high,
             current: current,
-            durationSec: 15),
-        fullscreenDialog: true,
-      ),
-    );
+            durationSec: 15,
+          ),
+          fullscreenDialog: true,
+        ),
+      );
+    });
     if (res == null) return;
     final center = (tgt.low + tgt.high) / 2.0;
     final needIncrease = current < center;
@@ -316,20 +330,18 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
 
   Future<void> _openNutrientMiniGame() async {
     final band = _state.stageConfig.bands[statNutrient]!;
-    final seed0 = (_state.dayIndex * 1000003) ^
-    (_state.stage.index * 9176) ^
-    (widget.difficulty.index * 271);
+    final seed0 = (_state.dayIndex * 1000003) ^ (_state.stage.index * 9176) ^ (widget.difficulty.index * 271);
     final seed = _dailySeed(seed0);
-    final tgt = _dailyBand(
-        band: band, seed: seed, shiftFactor: 0.5, scaleMin: 0.9, scaleMax: 1.1);
-    final res = await Navigator.push<NutrientMiniGameResult>(
-      context,
-      MaterialPageRoute(
-        builder: (_) =>
-            NutrientMixMinigamePage(targetLow: tgt.low, targetHigh: tgt.high),
-        fullscreenDialog: true,
-      ),
-    );
+    final tgt = _dailyBand(band: band, seed: seed, shiftFactor: 0.5, scaleMin: 0.9, scaleMax: 1.1);
+    final res = await _runPaused(() async {
+      return await Navigator.push<NutrientMiniGameResult>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => NutrientMixMinigamePage(targetLow: tgt.low, targetHigh: tgt.high),
+          fullscreenDialog: true,
+        ),
+      );
+    });
     if (res == null) return;
     final delta = 0.6 + res.score0to1 * 2.4;
     _state.applyTool(ToolType.nutrient, delta: delta);
@@ -337,13 +349,15 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
   }
 
   Future<void> _openPestMiniGame() async {
-    final res = await Navigator.push<PestCatchMiniGameResult>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const PestCatchMinigamePage(durationSec: 20, bugs: 10),
-        fullscreenDialog: true,
-      ),
-    );
+    final res = await _runPaused(() async {
+      return await Navigator.push<PestCatchMiniGameResult>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const PestCatchMinigamePage(durationSec: 20, bugs: 10),
+          fullscreenDialog: true,
+        ),
+      );
+    });
     if (res == null) return;
     final delta = 0.6 + res.score0to1 * 2.4;
     _state.applyTool(ToolType.pest, delta: delta);
@@ -351,9 +365,7 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
   }
 
   Future<void> _openPruneMiniGame() async {
-    final daySeed0 = (_state.dayIndex * 4241) ^
-    (_state.stage.index * 73) ^
-    (widget.difficulty.index * 11);
+    final daySeed0 = (_state.dayIndex * 4241) ^ (_state.stage.index * 73) ^ (widget.difficulty.index * 11);
     final daySeed = _dailySeed(daySeed0);
     final branches = switch (_state.stage) {
       PlantStage.seed => 5,
@@ -361,26 +373,28 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
       PlantStage.adult => 7,
       PlantStage.flowering => 8,
     };
-    final res = await Navigator.push<PruneMiniGameResult>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => PruneMinigamePage(
-            durationSec: 20, branches: branches, daySeed: daySeed),
-        fullscreenDialog: true,
-      ),
-    );
+    final res = await _runPaused(() async {
+      return await Navigator.push<PruneMiniGameResult>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PruneMinigamePage(durationSec: 20, branches: branches, daySeed: daySeed),
+          fullscreenDialog: true,
+        ),
+      );
+    });
     if (res == null) return;
     final delta = 0.6 + res.score0to1 * 2.2;
     _state.applyTool(ToolType.prune, delta: delta);
     setState(() {});
   }
 
+  bool _hasTool(ToolType t) => _state.stageConfig.tools.contains(t);
+
   @override
   Widget build(BuildContext context) {
     final o = MediaQuery.of(context).orientation;
     final cfg = _state.stageConfig;
-    final centerPlant =
-    _PlantCard(stage: _state.stage, health: _state.stats.health);
+    final centerPlant = _PlantCard(stage: _state.stage, health: _state.stats.health);
 
     final topInfo = _TopInfoBar(
       dayIndex: _state.dayIndex,
@@ -390,6 +404,10 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
       health: _state.stats.health,
       onEndDayPressed: _promptEndDay,
     );
+
+    // helper: chỉ vẽ vùng vàng nếu stat đang yêu cầu
+    Band bandIfRequired(String key) =>
+        cfg.requiredStats.contains(key) ? cfg.bands[key]! : const Band(0, 0);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFB),
@@ -408,8 +426,7 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
                   const SizedBox(height: 8),
                   Expanded(
                     child: Padding(
-                      padding:
-                      const EdgeInsets.symmetric(horizontal: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
                       child: Row(
                         children: [
                           Expanded(child: Center(child: centerPlant)),
@@ -417,21 +434,19 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
                           SizedBox(
                             width: 140,
                             child: _RightStatsPanel(
-                                stats: _state.stats, bands: cfg.bands),
+                              stats: _state.stats,
+                              bands: cfg.bands,
+                              requiredStats: cfg.requiredStats,
+                            ),
                           ),
                         ],
                       ),
                     ),
                   ),
+                  // ToolBar: luôn render 5 nút, khóa nếu chưa mở
                   _ToolBar(
                     stage: _state.stage,
-                    tools: const [
-                      ToolType.water,
-                      ToolType.light,
-                      ToolType.nutrient,
-                      ToolType.pest,
-                      ToolType.prune,
-                    ],
+                    tools: cfg.tools,
                     onUse: (t) async {
                       switch (t) {
                         case ToolType.water:
@@ -473,36 +488,41 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
                       child: Column(
                         children: [
                           GaugeRing(
-                              label: 'Nước',
-                              icon: const Icon(Icons.opacity),
-                              value: _state.stats.water,
-                              band: cfg.bands[statWater]!,
-                              size: 75),
+                            label: 'Nước',
+                            icon: const Icon(Icons.opacity),
+                            value: _state.stats.water,
+                            band: bandIfRequired(statWater),
+                            size: 75,
+                          ),
                           GaugeRing(
-                              label: 'Ánh sáng',
-                              icon: const Icon(Icons.wb_sunny),
-                              value: _state.stats.light,
-                              band: cfg.bands[statLight]!,
-                              size: 75),
+                            label: 'Ánh sáng',
+                            icon: const Icon(Icons.wb_sunny),
+                            value: _state.stats.light,
+                            band: bandIfRequired(statLight),
+                            size: 75,
+                          ),
                           GaugeRing(
-                              label: 'Dinh dưỡng',
-                              icon: const Icon(Icons.grass),
-                              value: _state.stats.nutrient,
-                              band: cfg.bands[statNutrient]!,
-                              size: 75),
+                            label: 'Dinh dưỡng',
+                            icon: const Icon(Icons.grass),
+                            value: _state.stats.nutrient,
+                            band: bandIfRequired(statNutrient),
+                            size: 75,
+                          ),
                           GaugeRing(
-                              label: 'Sạch/Bảo vệ',
-                              icon: const Icon(Icons.spa),
-                              value: _state.stats.clean,
-                              band: cfg.bands[statClean]!,
-                              size: 75),
+                            label: 'Sạch/Bảo vệ',
+                            icon: const Icon(Icons.spa),
+                            value: _state.stats.clean,
+                            band: bandIfRequired(statClean),
+                            size: 75,
+                          ),
                         ],
                       ),
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        vertical: 12, horizontal: 8),
+                  // Cột nút công cụ ở landscape: luôn hiện đủ 5 nút
+                  Container
+                    (
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       boxShadow: [
@@ -517,30 +537,45 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
                       child: Column(
                         children: [
                           ToolButton(
-                              icon: Icons.opacity,
-                              label: 'Tưới',
-                              onTap: () => _openWateringMiniGame(),
-                              size: 50),
+                            icon: Icons.opacity,
+                            label: 'Tưới',
+                            onTap: () => _openWateringMiniGame(),
+                            size: 50,
+                            disabled: !_hasTool(ToolType.water),
+                            lockedHint: 'Chưa mở ở giai đoạn này',
+                          ),
                           ToolButton(
-                              icon: Icons.wb_sunny,
-                              label: 'Ánh sáng',
-                              onTap: () => _openLightMiniGame(),
-                              size: 50),
+                            icon: Icons.wb_sunny,
+                            label: 'Ánh sáng',
+                            onTap: () => _openLightMiniGame(),
+                            size: 50,
+                            disabled: !_hasTool(ToolType.light),
+                            lockedHint: 'Chưa mở ở giai đoạn này',
+                          ),
                           ToolButton(
-                              icon: Icons.grass,
-                              label: 'Bón phân',
-                              onTap: () => _openNutrientMiniGame(),
-                              size: 50),
+                            icon: Icons.grass,
+                            label: 'Bón phân',
+                            onTap: () => _openNutrientMiniGame(),
+                            size: 50,
+                            disabled: !_hasTool(ToolType.nutrient),
+                            lockedHint: 'Chưa mở ở giai đoạn này',
+                          ),
                           ToolButton(
-                              icon: Icons.bug_report,
-                              label: 'Bắt sâu',
-                              onTap: () => _openPestMiniGame(),
-                              size: 50),
+                            icon: Icons.bug_report,
+                            label: 'Bắt sâu',
+                            onTap: () => _openPestMiniGame(),
+                            size: 50,
+                            disabled: !_hasTool(ToolType.pest),
+                            lockedHint: 'Chưa mở ở giai đoạn này',
+                          ),
                           ToolButton(
-                              icon: Icons.content_cut,
-                              label: 'Tỉa',
-                              onTap: () => _openPruneMiniGame(),
-                              size: 50),
+                            icon: Icons.content_cut,
+                            label: 'Tỉa',
+                            onTap: () => _openPruneMiniGame(),
+                            size: 50,
+                            disabled: !_hasTool(ToolType.prune),
+                            lockedHint: 'Chưa mở ở giai đoạn này',
+                          ),
                         ],
                       ),
                     ),
@@ -555,7 +590,7 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
   }
 }
 
-// ... CÁC WIDGET PHÍA DƯỚI KHÔNG THAY ĐỔI ...
+// ==== CÁC WIDGET PHỤ ====
 
 class _CuteBackground extends StatelessWidget {
   const _CuteBackground();
@@ -566,10 +601,7 @@ class _CuteBackground extends StatelessWidget {
       Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [
-              Colors.white.withOpacity(0.0),
-              Colors.white.withOpacity(0.10)
-            ],
+            colors: [Colors.white.withOpacity(0.0), Colors.white.withOpacity(0.10)],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
@@ -586,28 +618,20 @@ class _PlantCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final healthColor = Color.lerp(const Color(0xFFE53935),
-        const Color(0xFF2E7D32), (health / 100.0).clamp(0, 1))!;
-
+    final healthColor =
+    Color.lerp(const Color(0xFFE53935), const Color(0xFF2E7D32), (health / 100.0).clamp(0, 1))!;
     return FittedBox(
       child: Container(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(.9),
           borderRadius: BorderRadius.circular(28),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withOpacity(.08),
-                blurRadius: 12,
-                offset: const Offset(0, 6))
-          ],
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(.08), blurRadius: 12, offset: const Offset(0, 6))],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_stageText(),
-                style:
-                const TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
+            Text(_stageText(), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
             const SizedBox(height: 8),
             SizedBox(
               width: 200,
@@ -618,52 +642,43 @@ class _PlantCard extends StatelessWidget {
                   height: 170,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                          color: healthColor.withOpacity(.28),
-                          blurRadius: 24,
-                          spreadRadius: 4)
-                    ],
+                    boxShadow: [BoxShadow(color: healthColor.withOpacity(.28), blurRadius: 24, spreadRadius: 4)],
                   ),
                 ),
-                Image.asset(_imgForStage(), fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) {
-                      final emoji = {
-                        PlantStage.seed: '🌱',
-                        PlantStage.seedling: '🌿',
-                        PlantStage.adult: '🌳',
-                        PlantStage.flowering: '🌸',
-                      }[stage]!;
-                      return Text(emoji, style: const TextStyle(fontSize: 96));
-                    }),
+                Image.asset(_imgForStage(), fit: BoxFit.contain, errorBuilder: (_, __, ___) {
+                  final emoji = {
+                    PlantStage.seed: '🌱',
+                    PlantStage.seedling: '🌿',
+                    PlantStage.adult: '🌳',
+                    PlantStage.flowering: '🌸',
+                  }[stage]!;
+                  return Text(emoji, style: const TextStyle(fontSize: 96));
+                }),
                 Positioned(
                   right: 0,
                   top: 0,
                   child: Container(
-                    padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                            color: Colors.black.withOpacity(.08), blurRadius: 8)
-                      ],
+                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(.08), blurRadius: 8)],
                     ),
                     child: Row(children: [
                       const Icon(Icons.favorite, size: 16, color: Colors.pink),
                       const SizedBox(width: 4),
-                      Text(health.toStringAsFixed(0),
-                          style: const TextStyle(fontWeight: FontWeight.w900)),
+                      Text(health.toStringAsFixed(0), style: const TextStyle(fontWeight: FontWeight.w900)),
                     ]),
                   ),
                 ),
               ]),
             ),
             const SizedBox(height: 6),
-            const Text('Giữ các chỉ số trong vùng vàng để cây khoẻ!',
-                style: TextStyle(color: Colors.black54),
-                textAlign: TextAlign.center),
+            const Text(
+              'Giữ các chỉ số trong vùng vàng để cây khoẻ!',
+              style: TextStyle(color: Colors.black54),
+              textAlign: TextAlign.center,
+            ),
           ],
         ),
       ),
@@ -721,7 +736,8 @@ class _TopInfoBar extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
-            _chip(const Icon(Icons.calendar_month, size: 18), 'Ngày ${dayIndex > totalDays ? totalDays : dayIndex}/$totalDays'),
+            _chip(const Icon(Icons.calendar_month, size: 18),
+                'Ngày ${dayIndex > totalDays ? totalDays : dayIndex}/$totalDays'),
             const SizedBox(width: 8),
             _chip(const Icon(Icons.timer, size: 18), timeText),
             const SizedBox(width: 8),
@@ -731,9 +747,7 @@ class _TopInfoBar extends StatelessWidget {
               onPressed: onEndDayPressed,
               icon: const Icon(Icons.done_all, size: 18),
               label: const Text('Kết thúc ngày'),
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-              ),
+              style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 12)),
             ),
           ],
         ),
@@ -760,9 +774,7 @@ class _TopInfoBar extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 6)
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 6)],
       ),
       child: Row(children: [icon, const SizedBox(width: 6), Text(text)]),
     );
@@ -772,44 +784,52 @@ class _TopInfoBar extends StatelessWidget {
 class _RightStatsPanel extends StatelessWidget {
   final Stats stats;
   final Map<String, Band> bands;
-  const _RightStatsPanel({required this.stats, required this.bands});
+  final Set<String>? requiredStats;
+  const _RightStatsPanel({
+    required this.stats,
+    required this.bands,
+    this.requiredStats,
+  });
+
+  Band _bandIfRequired(String key) {
+    final req = requiredStats ?? {statWater, statLight, statNutrient, statClean};
+    return req.contains(key) ? bands[key]! : const Band(0, 0);
+  }
 
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       child: Column(
         children: [
-          GaugeRing(
-              label: 'Nước',
-              icon: const Icon(Icons.opacity),
-              value: stats.water,
-              band: bands[statWater]!),
-          GaugeRing(
-              label: 'Ánh sáng',
-              icon: const Icon(Icons.wb_sunny),
-              value: stats.light,
-              band: bands[statLight]!),
-          GaugeRing(
-              label: 'Dinh dưỡng',
-              icon: const Icon(Icons.grass),
-              value: stats.nutrient,
-              band: bands[statNutrient]!),
-          GaugeRing(
-              label: 'Sạch/Bảo vệ',
-              icon: const Icon(Icons.spa),
-              value: stats.clean,
-              band: bands[statClean]!),
+          GaugeRing(label: 'Nước', icon: const Icon(Icons.opacity), value: stats.water, band: _bandIfRequired(statWater)),
+          GaugeRing(label: 'Ánh sáng', icon: const Icon(Icons.wb_sunny), value: stats.light, band: _bandIfRequired(statLight)),
+          GaugeRing(label: 'Dinh dưỡng', icon: const Icon(Icons.grass), value: stats.nutrient, band: _bandIfRequired(statNutrient)),
+          GaugeRing(label: 'Sạch/Bảo vệ', icon: const Icon(Icons.spa), value: stats.clean, band: _bandIfRequired(statClean)),
         ],
       ),
     );
   }
 }
 
+// ToolBar: luôn hiện đủ 5 nút, khóa nếu chưa mở theo stage
 class _ToolBar extends StatelessWidget {
   final PlantStage stage;
-  final List<ToolType> tools;
+  final List<ToolType> tools; // từ StageConfig
   final void Function(ToolType) onUse;
   const _ToolBar({required this.stage, required this.tools, required this.onUse});
+
+  bool _isAvailable(ToolType t) => tools.contains(t);
+
+  ToolButton _btn(ToolType t, IconData icon, String label) {
+    final locked = !_isAvailable(t);
+    return ToolButton(
+      icon: icon,
+      label: label,
+      onTap: () => onUse(t),
+      disabled: locked,
+      lockedHint: 'Chưa mở ở giai đoạn này',
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -817,40 +837,18 @@ class _ToolBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 8,
-              offset: const Offset(0, -2))
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, -2))],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _btn(ToolType.water, Icons.opacity, 'Tưới'),
+          _btn(ToolType.light, Icons.wb_sunny, 'Ánh sáng'),
+          _btn(ToolType.nutrient, Icons.grass, 'Bón phân'),
+          _btn(ToolType.pest, Icons.bug_report, 'Bắt sâu'),
+          _btn(ToolType.prune, Icons.content_cut, 'Tỉa'),
         ],
       ),
-      child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-        if (tools.contains(ToolType.water))
-          ToolButton(
-              icon: Icons.opacity,
-              label: 'Tưới',
-              onTap: () => onUse(ToolType.water)),
-        if (tools.contains(ToolType.light))
-          ToolButton(
-              icon: Icons.wb_sunny,
-              label: 'Ánh sáng',
-              onTap: () => onUse(ToolType.light)),
-        if (tools.contains(ToolType.nutrient))
-          ToolButton(
-              icon: Icons.grass,
-              label: 'Bón phân',
-              onTap: () => onUse(ToolType.nutrient)),
-        if (tools.contains(ToolType.pest))
-          ToolButton(
-              icon: Icons.bug_report,
-              label: 'Bắt sâu',
-              onTap: () => onUse(ToolType.pest)),
-        if (tools.contains(ToolType.prune))
-          ToolButton(
-              icon: Icons.content_cut,
-              label: 'Tỉa',
-              onTap: () => onUse(ToolType.prune)),
-      ]),
     );
   }
 }
@@ -869,17 +867,15 @@ class _DaySummaryDialog extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: List.generate(
-              3,
-                  (i) => Icon(i < stars ? Icons.star : Icons.star_border,
-                  size: 28, color: Colors.amber)),
+            3,
+                (i) => Icon(i < stars ? Icons.star : Icons.star_border, size: 28, color: Colors.amber),
+          ),
         ),
         const SizedBox(height: 12),
         Text('Giai đoạn hiện tại: ${_stageName(stage)}'),
       ]),
       actions: [
-        TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Tiếp tục'))
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Tiếp tục')),
       ],
     );
   }

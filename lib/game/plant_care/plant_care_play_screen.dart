@@ -93,7 +93,6 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
     super.dispose();
   }
 
-  // Chạy 1 tác vụ trong trạng thái pause để tránh decay/grow nền.
   Future<T?> _runPaused<T>(Future<T?> Function() op) async {
     _state.setPaused(true);
     if (mounted) setState(() {});
@@ -169,7 +168,7 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
 
     await widget.onSaveProgress(
       state: _stateMapWithSalt(),
-      dayIndex: _state.dayIndex - 1, // ngày vừa hoàn thành
+      dayIndex: _state.dayIndex - 1,
       stars: _sumStars,
       timeLeftSec: _state.timeLeftSec,
     );
@@ -191,31 +190,23 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
     }
   }
 
+  // ===== THAY ĐỔI 2: Cập nhật hộp thoại xác nhận =====
   Future<void> _promptEndDay() async {
-    final playedPct = (_state.timeRatioToday * 100).round();
-    final playedEnough = _state.timeRatioToday >= 0.25; // khớp core
-    final usedTool = _state.hadToolUseToday;
-
-    final msg = (!playedEnough || !usedTool)
-        ? 'Nếu kết thúc sớm bây giờ, con có thể sẽ không được sao đâu nhé.\n'
-        '${playedEnough ? '' : '• Con mới chơi khoảng $playedPct% của ngày.\n'}'
-        '${usedTool ? '' : '• Con chưa dùng công cụ nào hôm nay.\n'}'
-        'Con muốn thử thêm một chút rồi hãy kết thúc chứ?'
-        : 'Con đã chăm cây khá tốt rồi. Kết thúc ngày để nhận sao nhé!';
-
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Kết thúc ngày?'),
-        content: Text(msg),
+        title: const Text('Kết thúc chăm sóc ngày?'),
+        content: const Text(
+          'Con đã làm rất tốt, nhưng nếu kết thúc ngày quá sớm cây sẽ không có đủ thời gian để lớn đâu nhé.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Chơi tiếp'),
+            child: const Text('Quay lại'), // Đổi tên nút
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Kết thúc'),
+            child: const Text('Xác nhận'), // Đổi tên nút
           ),
         ],
       ),
@@ -224,7 +215,7 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
     if (confirm ?? false) {
       if (!mounted) return;
       setState(() {
-        _state.timeLeftSec = 0; // kích hoạt _onDayEnd
+        _state.timeLeftSec = 0;
       });
     }
   }
@@ -243,7 +234,6 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
     return m;
   }
 
-  // KHÔNG ép targetLow >= 0.5; chỉ giữ trong [0..1] và min-width.
   ({double low, double high}) _dailyBand({
     required Band band,
     required int seed,
@@ -269,7 +259,7 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
     if (high - low < 0.06) {
       final mid = (low + high) / 2.0;
       low = (mid - 0.03).clamp(0.0, 1.0);
-      high = (mid + 0.03).clamp(0.0, 1.0);
+      high = (mid - 0.03).clamp(0.0, 1.0);
     }
     return (low: low, high: high);
   }
@@ -320,11 +310,10 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
       );
     });
     if (res == null) return;
-    final center = (tgt.low + tgt.high) / 2.0;
-    final needIncrease = current < center;
-    final magnitude = 0.6 + res.score0to1 * 2.0;
-    final delta = needIncrease ? magnitude : -magnitude;
-    _state.applyTool(ToolType.light, delta: delta);
+
+    final newLightValue = res.finalLight * 100.0;
+    _state.stats.light = newLightValue.clamp(0.0, 100.0);
+    _state.applyTool(ToolType.light, delta: 0);
     setState(() {});
   }
 
@@ -394,7 +383,11 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
   Widget build(BuildContext context) {
     final o = MediaQuery.of(context).orientation;
     final cfg = _state.stageConfig;
-    final centerPlant = _PlantCard(stage: _state.stage, health: _state.stats.health);
+    final centerPlant = _PlantCard(
+      stage: _state.stage,
+      health: _state.stats.health,
+      growth: _state.stats.growth,
+    );
 
     final topInfo = _TopInfoBar(
       dayIndex: _state.dayIndex,
@@ -405,7 +398,6 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
       onEndDayPressed: _promptEndDay,
     );
 
-    // helper: chỉ vẽ vùng vàng nếu stat đang yêu cầu
     Band bandIfRequired(String key) =>
         cfg.requiredStats.contains(key) ? cfg.bands[key]! : const Band(0, 0);
 
@@ -443,7 +435,6 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
                       ),
                     ),
                   ),
-                  // ToolBar: luôn render 5 nút, khóa nếu chưa mở
                   _ToolBar(
                     stage: _state.stage,
                     tools: cfg.tools,
@@ -519,7 +510,6 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
                       ),
                     ),
                   ),
-                  // Cột nút công cụ ở landscape: luôn hiện đủ 5 nút
                   Container
                     (
                     padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
@@ -590,8 +580,6 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
   }
 }
 
-// ==== CÁC WIDGET PHỤ ====
-
 class _CuteBackground extends StatelessWidget {
   const _CuteBackground();
   @override
@@ -614,7 +602,13 @@ class _CuteBackground extends StatelessWidget {
 class _PlantCard extends StatelessWidget {
   final PlantStage stage;
   final double health;
-  const _PlantCard({required this.stage, required this.health});
+  final double growth;
+
+  const _PlantCard({
+    required this.stage,
+    required this.health,
+    required this.growth,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -673,7 +667,47 @@ class _PlantCard extends StatelessWidget {
                 ),
               ]),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 12),
+            const Text(
+              'Tiến độ lớn lên',
+              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.brown),
+            ),
+            const SizedBox(height: 4),
+            Container(
+              width: 180,
+              height: 20,
+              decoration: BoxDecoration(
+                color: Colors.brown.shade100,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.brown.shade200),
+              ),
+              child: Stack(
+                children: [
+                  FractionallySizedBox(
+                    widthFactor: (growth / 100.0).clamp(0.0, 1.0),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      decoration: BoxDecoration(
+                        color: Colors.lightGreen.shade400,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                  Center(
+                    child: Text(
+                      '${growth.toStringAsFixed(0)}%',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                        color: Colors.white,
+                        shadows: [Shadow(color: Colors.black26, blurRadius: 2, offset: Offset(1,1))],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
             const Text(
               'Giữ các chỉ số trong vùng vàng để cây khoẻ!',
               style: TextStyle(color: Colors.black54),
@@ -712,6 +746,7 @@ class _PlantCard extends StatelessWidget {
   }
 }
 
+// ===== THAY ĐỔI 1: Cập nhật tên nút thành "Kết thúc chăm sóc ngày" =====
 class _TopInfoBar extends StatelessWidget {
   final int dayIndex, totalDays;
   final String timeText;
@@ -746,7 +781,7 @@ class _TopInfoBar extends StatelessWidget {
             FilledButton.tonalIcon(
               onPressed: onEndDayPressed,
               icon: const Icon(Icons.done_all, size: 18),
-              label: const Text('Kết thúc ngày'),
+              label: const Text('Kết thúc chăm sóc ngày'), // Đổi tên nút ở đây
               style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 12)),
             ),
           ],
@@ -811,10 +846,9 @@ class _RightStatsPanel extends StatelessWidget {
   }
 }
 
-// ToolBar: luôn hiện đủ 5 nút, khóa nếu chưa mở theo stage
 class _ToolBar extends StatelessWidget {
   final PlantStage stage;
-  final List<ToolType> tools; // từ StageConfig
+  final List<ToolType> tools;
   final void Function(ToolType) onUse;
   const _ToolBar({required this.stage, required this.tools, required this.onUse});
 

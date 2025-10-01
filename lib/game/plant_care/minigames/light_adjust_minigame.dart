@@ -2,10 +2,17 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../plant_assets.dart';
 
+// UPDATED: Thêm finalLight để trả về mức sáng cuối cùng sau khi chơi
 class LightMiniGameResult {
   final double score0to1;
   final int elapsedMs;
-  const LightMiniGameResult({required this.score0to1, required this.elapsedMs});
+  final double finalLight; // Giá trị ánh sáng cuối cùng (từ 0.0 đến 1.0)
+
+  const LightMiniGameResult({
+    required this.score0to1,
+    required this.elapsedMs,
+    required this.finalLight, // Thêm vào constructor
+  });
 }
 
 /// Mini-game Ánh sáng: KÉO MÂY CHE NẮNG (KHÔNG đếm giờ)
@@ -138,13 +145,19 @@ class _LightAdjustMinigamePageState extends State<LightAdjustMinigamePage>
 
   void _finish() {
     final elapsedMs = DateTime.now().difference(_start).inMilliseconds;
-    final light = _currentLight();
+    final light = _currentLight(); // Lấy giá trị ánh sáng cuối cùng
     final closeness =
     (1.0 - ((light - _center).abs() / (_tolerance == 0 ? 1 : _tolerance)))
         .clamp(0.0, 1.0);
+
+    // UPDATED: Trả về kết quả với giá trị finalLight
     Navigator.pop(
       context,
-      LightMiniGameResult(score0to1: closeness, elapsedMs: elapsedMs),
+      LightMiniGameResult(
+        score0to1: closeness,
+        elapsedMs: elapsedMs,
+        finalLight: light, // Truyền giá trị ánh sáng cuối cùng
+      ),
     );
   }
 

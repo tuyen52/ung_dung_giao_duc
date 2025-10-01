@@ -195,7 +195,7 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Kết thúc chăm sóc ngày?'),
+        title: const Text('Kết thúc ngày nhanh?'),
         content: const Text(
           'Con đã làm rất tốt, nhưng nếu kết thúc ngày quá sớm cây sẽ không có đủ thời gian để lớn đâu nhé.',
         ),

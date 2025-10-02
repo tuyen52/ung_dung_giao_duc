@@ -1,28 +1,28 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../core/plant_core.dart'; // dùng PlantStage
-import '../plant_assets.dart'; // dùng chung background với màn chính
+import '../core/plant_core.dart';
+import '../plant_assets.dart';
 
 class WateringMiniGameResult {
-  final double score0to1;
-  final int elapsedMs;
-  const WateringMiniGameResult(
-      {required this.score0to1, required this.elapsedMs});
+  /// Điểm nước cộng thẳng vào chỉ số: 0 hoặc 5/10/15/20 (0 nếu chưa chạm mốc 5)
+  final int addedPoints;
+  /// Mực nước (0..1) tại thời điểm bấm Xong – chỉ để debug/telemetry nếu cần
+  final double finalLevel;
+  final int elapsedMs; // vẫn giữ để tương thích, nhưng không giới hạn thời gian
+  const WateringMiniGameResult({
+    required this.addedPoints,
+    required this.finalLevel,
+    required this.elapsedMs,
+  });
 }
 
-/// Mini-game tưới nước: nhấn & giữ để đổ nước; canh mực nước trùng “vạch chuẩn”.
+/// Mini-game tưới nước: Nhấn & giữ để đổ. Nhận **mốc cao nhất đã CHẠM/QUA**: 5/10/15/20.
 class WateringMinigamePage extends StatefulWidget {
-  final double targetLow; // 0..1
-  final double targetHigh; // 0..1
-  final int durationSec;
-  final PlantStage stage; // theo giai đoạn
+  final PlantStage stage;
 
   const WateringMinigamePage({
     super.key,
-    required this.targetLow,
-    required this.targetHigh,
     required this.stage,
-    this.durationSec = 15,
   });
 
   @override
@@ -31,11 +31,17 @@ class WateringMinigamePage extends StatefulWidget {
 
 class _WateringMinigamePageState extends State<WateringMinigamePage>
     with SingleTickerProviderStateMixin {
-  // tuning theo stage
-  late final double _tolerance; // vùng chấp nhận quanh vạch (0..1)
-  late final double _pourSpeedPerSec; // tốc độ đổ
-  static const double _drainPerSec = 0.06; // rò khi thả
+  // ===== Tuning theo stage (tốc độ đổ + rò)
+  late final double _pourSpeedPerSec; // tốc độ đổ (0..1 / giây)
+  static const double _drainPerSec = 0.06; // tốc độ rò khi thả
 
+  // 4 mốc cộng điểm
+  static const List<int> _marks = [5, 10, 15, 20];
+  static const int _maxMark = 20;
+  static final List<double> _markFractions =
+  _marks.map((m) => m / _maxMark).toList(); // [0.25, 0.5, 0.75, 1.0]
+
+  // ticker nội bộ (chỉ để cập nhật vật lý, KHÔNG đếm ngược)
   late Timer _timer;
   late DateTime _startAll;
   DateTime _lastTick = DateTime.now();
@@ -43,42 +49,29 @@ class _WateringMinigamePageState extends State<WateringMinigamePage>
   double _level = 0.30; // 0..1
   bool _pouring = false;
 
-  int _timeNearLineMs = 0;
-  int _left = 0;
-
   late final AnimationController _pulse =
   AnimationController(vsync: this, duration: const Duration(milliseconds: 900))
     ..repeat(reverse: true);
-
-  // Vạch chuẩn = giữa targetLow & targetHigh
-  double get _line =>
-      ((widget.targetLow + widget.targetHigh) / 2.0).clamp(0.0, 1.0);
-  bool _nearLine(double v) => (v - _line).abs() <= _tolerance;
 
   @override
   void initState() {
     super.initState();
     switch (widget.stage) {
       case PlantStage.seed:
-        _tolerance = 0.12;
         _pourSpeedPerSec = 0.36;
-        break; // ±12%
+        break;
       case PlantStage.seedling:
-        _tolerance = 0.10;
         _pourSpeedPerSec = 0.42;
         break;
       case PlantStage.adult:
-        _tolerance = 0.08;
         _pourSpeedPerSec = 0.45;
-        break; // ±8%
+        break;
       case PlantStage.flowering:
-        _tolerance = 0.06;
         _pourSpeedPerSec = 0.55;
-        break; // ±6%
+        break;
     }
 
     _startAll = DateTime.now();
-    _left = widget.durationSec;
     _lastTick = DateTime.now();
     _timer = Timer.periodic(const Duration(milliseconds: 16), _tick);
   }
@@ -86,7 +79,6 @@ class _WateringMinigamePageState extends State<WateringMinigamePage>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // precache background để mượt
     precacheImage(const AssetImage(PlantAssets.bg), context);
   }
 
@@ -107,33 +99,33 @@ class _WateringMinigamePageState extends State<WateringMinigamePage>
         _level + ((_pouring ? _pourSpeedPerSec : -_drainPerSec) * seconds);
     next = next.clamp(0.0, 1.0);
 
-    if (_nearLine(next)) _timeNearLineMs += dt.inMilliseconds;
-
-    final elapsed = now.difference(_startAll).inSeconds;
-    final remain = (widget.durationSec - elapsed).clamp(0, widget.durationSec);
-
     setState(() {
       _level = next;
-      _left = remain;
     });
+  }
 
-    if (remain <= 0) _finish();
+  /// Trả về index mốc cao nhất đã **chạm hoặc vượt**; -1 nếu chưa đạt mốc 5.
+  int _achievedMarkIndex(double level) {
+    for (int i = _markFractions.length - 1; i >= 0; i--) {
+      if (level + 1e-9 >= _markFractions[i]) return i; // chạm/vượt mốc
+    }
+    return -1;
   }
 
   void _finish() {
     if (_timer.isActive) _timer.cancel();
-    final elapsedMs = DateTime.now().difference(_startAll).inMilliseconds;
 
-    final closeness = (1.0 -
-        ((_level - _line).abs() / (_tolerance == 0 ? 1 : _tolerance)))
-        .clamp(0.0, 1.0);
-    final timeRatio =
-    elapsedMs <= 0 ? 0.0 : (_timeNearLineMs / elapsedMs).clamp(0.0, 1.0);
-    final score = (0.6 * closeness + 0.4 * timeRatio).clamp(0.0, 1.0);
+    final elapsedMs = DateTime.now().difference(_startAll).inMilliseconds;
+    final idx = _achievedMarkIndex(_level);
+    final added = idx >= 0 ? _marks[idx] : 0;
 
     Navigator.pop(
       context,
-      WateringMiniGameResult(score0to1: score, elapsedMs: elapsedMs),
+      WateringMiniGameResult(
+        addedPoints: added,
+        finalLevel: _level,
+        elapsedMs: elapsedMs,
+      ),
     );
   }
 
@@ -150,145 +142,133 @@ class _WateringMinigamePageState extends State<WateringMinigamePage>
     }
   }
 
-  // ============== WIDGET BUILDERS ==============
-
-  Widget _buildPortraitLayout() {
-    final theme = Theme.of(context);
-    return Column(
-      children: [
-        // Header được xử lý bên ngoài, phần này chỉ chứa nội dung chính
-        const SizedBox(height: 48), // Khoảng trống cho header
-        Text('Tưới nước canh đúng vạch!',
-            style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-        const SizedBox(height: 4),
-        Text('Giữ nút để đổ nước • Thả để dừng',
-            style: theme.textTheme.bodyMedium?.copyWith(color: Colors.black54)),
-        const SizedBox(height: 2),
-        Text(
-          'Giai đoạn: ${_stageLabel(widget.stage)} • Dung sai ±${(_tolerance * 100).round()}%',
-          style: theme.textTheme.bodySmall?.copyWith(color: Colors.black45),
-        ),
-        const SizedBox(height: 6),
-        Expanded(child: _buildPotScene()),
-        _buildControls(),
-      ],
-    );
-  }
-
-  Widget _buildLandscapeLayout() {
-    return Row(
-      children: [
-        // Khu vực chậu cây, co giãn cho vừa
-        Expanded(
-          flex: 3, // Chiếm nhiều không gian hơn
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: FittedBox(child: _buildPotScene()),
-          ),
-        ),
-        // Cột điều khiển bên phải
-        Expanded(
-          flex: 2, // Chiếm ít không gian hơn
-          child: _buildControls(isLandscape: true),
-        ),
-      ],
-    );
-  }
-
-  /// Tách riêng khu vực chậu cây để tái sử dụng
-  Widget _buildPotScene() {
-    return Center(
-      child: _FaucetPotScene(
-        level: _level,
-        line: _line,
-        tolerance: _tolerance,
-        pouring: _pouring,
-        pulse: _pulse,
-      ),
-    );
-  }
-
-  /// Tách riêng cụm điều khiển để tái sử dụng
-  Widget _buildControls({bool isLandscape = false}) {
-    final pctNow = (_level * 100).round();
-    final inNear = _nearLine(_level);
-    final statusText = inNear ? 'ĐÚNG VẠCH' : (_level < _line ? 'THIẾU' : 'THỪA');
-    final statusColor = inNear ? const Color(0xFF2E7D32) : const Color(0xFFD32F2F);
-
-    final content = Column(
-      mainAxisAlignment: isLandscape ? MainAxisAlignment.center : MainAxisAlignment.end,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Padding(
-          padding: EdgeInsets.only(bottom: 10, top: isLandscape ? 20 : 0),
-          child: _StatusChip(text: '$statusText • $pctNow%', color: statusColor),
-        ),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 18),
-          child: GestureDetector(
-            onTapDown: (_) => setState(() => _pouring = true),
-            onTapUp: (_) => setState(() => _pouring = false),
-            onTapCancel: () => setState(() => _pouring = false),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 120),
-              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
-              decoration: BoxDecoration(
-                color: _pouring ? const Color(0xFF0288D1) : const Color(0xFF29B6F6),
-                borderRadius: BorderRadius.circular(50),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.12),
-                    blurRadius: 12,
-                    offset: const Offset(0, 6),
-                  )
-                ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: const [
-                  Icon(Icons.opacity, color: Colors.white),
-                  SizedBox(width: 8),
-                  Text('NHẤN & GIỮ',
-                      style: TextStyle(
-                          color: Colors.white, fontWeight: FontWeight.w700)),
-                ],
-              ),
-            ),
-          ),
-        ),
-        Padding(
-          padding: EdgeInsets.only(bottom: isLandscape ? 20 : 14),
-          child: FilledButton.icon(
-            onPressed: _finish,
-            icon: const Icon(Icons.check_circle),
-            label: const Text('Xong'),
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF00695C),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(28)),
-              elevation: 6,
-            ),
-          ),
-        ),
-      ],
-    );
-
-    return isLandscape
-        ? SingleChildScrollView(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: content))
-        : content;
-  }
-
   @override
   Widget build(BuildContext context) {
     final orientation = MediaQuery.of(context).orientation;
+    final theme = Theme.of(context);
+    final achieved = _achievedMarkIndex(_level); // mốc hiện tại đã đạt
+
+    Widget buildControls({bool isLandscape = false}) {
+      final content = Column(
+        mainAxisAlignment: isLandscape ? MainAxisAlignment.center : MainAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: EdgeInsets.only(bottom: 10, top: isLandscape ? 20 : 0),
+            child: _StatusChip(
+              text: 'Mốc đã đạt: ${achieved >= 0 ? _marks[achieved] : 0}',
+              color: achieved >= 0 ? const Color(0xFF2E7D32) : const Color(0xFF455A64),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 18),
+            child: GestureDetector(
+              onTapDown: (_) => setState(() => _pouring = true),
+              onTapUp: (_) => setState(() => _pouring = false),
+              onTapCancel: () => setState(() => _pouring = false),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 120),
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+                decoration: BoxDecoration(
+                  color: _pouring ? const Color(0xFF0288D1) : const Color(0xFF29B6F6),
+                  borderRadius: BorderRadius.circular(50),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.12),
+                      blurRadius: 12,
+                      offset: const Offset(0, 6),
+                    )
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Icon(Icons.opacity, color: Colors.white),
+                    SizedBox(width: 8),
+                    Text('NHẤN & GIỮ',
+                        style: TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.w700)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.only(bottom: isLandscape ? 20 : 14),
+            child: FilledButton.icon(
+              onPressed: _finish,
+              icon: const Icon(Icons.check_circle),
+              label: const Text('Xong'),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF00695C),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(28)),
+                elevation: 6,
+              ),
+            ),
+          ),
+        ],
+      );
+
+      return isLandscape
+          ? SingleChildScrollView(
+          child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: content))
+          : content;
+    }
+
+    Widget buildPotScene() => Center(
+      child: _FaucetPotScene(
+        level: _level,
+        pouring: _pouring,
+        pulse: _pulse,
+        marks: _marks,
+        markFractions: _markFractions,
+        achievedIndex: achieved,
+      ),
+    );
+
+    Widget portrait() => Column(
+      children: [
+        const SizedBox(height: 48),
+        Text('Tưới nước & chọn mốc điểm',
+            style: theme.textTheme.titleLarge
+                ?.copyWith(fontWeight: FontWeight.w800)),
+        const SizedBox(height: 4),
+        Text('Giữ nút để đổ nước • Thả để dừng',
+            style:
+            theme.textTheme.bodyMedium?.copyWith(color: Colors.black54)),
+        const SizedBox(height: 2),
+        Text(
+          'Giai đoạn: ${_stageLabel(widget.stage)}',
+          style: theme.textTheme.bodySmall?.copyWith(color: Colors.black45),
+        ),
+        const SizedBox(height: 6),
+        Expanded(child: buildPotScene()),
+        buildControls(),
+      ],
+    );
+
+    Widget landscape() => Row(
+      children: [
+        Expanded(
+          flex: 3,
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: FittedBox(child: buildPotScene()),
+          ),
+        ),
+        Expanded(flex: 2, child: buildControls(isLandscape: true)),
+      ],
+    );
 
     return Scaffold(
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Nền và overlay
           Image.asset(PlantAssets.bg, fit: BoxFit.cover),
           Container(
             decoration: BoxDecoration(
@@ -302,20 +282,15 @@ class _WateringMinigamePageState extends State<WateringMinigamePage>
               ),
             ),
           ),
-
-          // Layout chính
           SafeArea(
             child: Stack(
               children: [
-                // Bố cục thay đổi theo chiều xoay
                 AnimatedSwitcher(
                   duration: const Duration(milliseconds: 300),
                   child: orientation == Orientation.portrait
-                      ? _buildPortraitLayout()
-                      : _buildLandscapeLayout(),
+                      ? portrait()
+                      : landscape(),
                 ),
-
-                // Header luôn nằm trên cùng
                 Positioned(
                   top: 8,
                   left: 12,
@@ -327,11 +302,7 @@ class _WateringMinigamePageState extends State<WateringMinigamePage>
                     ),
                   ),
                 ),
-                Positioned(
-                  top: 12,
-                  right: 12,
-                  child: _TimerPill(secondsLeft: _left),
-                ),
+                // KHÔNG còn TimerPill / đếm thời gian
               ],
             ),
           ),
@@ -341,44 +312,23 @@ class _WateringMinigamePageState extends State<WateringMinigamePage>
   }
 }
 
-// ... CÁC WIDGET PHỤ KHÁC GIỮ NGUYÊN ...
-class _TimerPill extends StatelessWidget {
-  final int secondsLeft;
-  const _TimerPill({required this.secondsLeft});
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 8)
-        ],
-      ),
-      child: Row(children: [
-        const Icon(Icons.timer, size: 18),
-        const SizedBox(width: 6),
-        Text('${secondsLeft}s',
-            style: const TextStyle(fontWeight: FontWeight.bold)),
-      ]),
-    );
-  }
-}
+// ======= WIDGET PHỤ =======
 
 class _FaucetPotScene extends StatelessWidget {
   final double level; // 0..1
-  final double line; // 0..1
-  final double tolerance; // 0..1
   final bool pouring;
   final Animation<double> pulse;
+  final List<int> marks; // [5,10,15,20]
+  final List<double> markFractions; // [0.25,0.5,0.75,1.0]
+  final int achievedIndex; // mốc cao nhất đã đạt (-1 nếu chưa đạt)
 
   const _FaucetPotScene({
     required this.level,
-    required this.line,
-    required this.tolerance,
     required this.pouring,
     required this.pulse,
+    required this.marks,
+    required this.markFractions,
+    required this.achievedIndex,
   });
 
   @override
@@ -387,10 +337,9 @@ class _FaucetPotScene extends StatelessWidget {
     const potW = 220.0;
     const potH = 220.0; // vuông
     const potTop = 64.0; // hạ chậu để chừa khoảng dòng nước
-    const inner = 6.0; // khoảng đệm
+    const inner = 6.0;
 
-    const streamTop = 0.0; // dòng nước bắt đầu từ mép trên
-
+    const streamTop = 0.0;
     final innerHeight = potH - inner * 2;
     final waterSurfaceY = potTop + inner + (1.0 - level) * innerHeight;
 
@@ -429,8 +378,9 @@ class _FaucetPotScene extends StatelessWidget {
               height: potH,
               innerPad: inner,
               level: level,
-              lineRatioFromTop: (1.0 - line),
-              toleranceRatio: tolerance,
+              marks: marks,
+              markFractions: markFractions,
+              achievedIndex: achievedIndex,
               pulse: pulse,
             ),
           ),
@@ -445,8 +395,9 @@ class _PotWithWater extends StatelessWidget {
   final double height;
   final double innerPad; // khoảng cách viền -> mặt trong
   final double level; // 0..1
-  final double lineRatioFromTop; // 0..1 theo inner
-  final double toleranceRatio; // 0..1 theo inner
+  final List<int> marks;
+  final List<double> markFractions; // 0..1 từ đáy lên
+  final int achievedIndex; // -1 nếu chưa đạt mốc 5
   final Animation<double> pulse;
 
   const _PotWithWater({
@@ -454,8 +405,9 @@ class _PotWithWater extends StatelessWidget {
     required this.height,
     required this.innerPad,
     required this.level,
-    required this.lineRatioFromTop,
-    required this.toleranceRatio,
+    required this.marks,
+    required this.markFractions,
+    required this.achievedIndex,
     required this.pulse,
   });
 
@@ -465,8 +417,6 @@ class _PotWithWater extends StatelessWidget {
     final innerH = height - innerPad * 2;
 
     final waterTop = (1.0 - level) * innerH;
-    final lineY = lineRatioFromTop * innerH;
-    final tolPx = (toleranceRatio * innerH).clamp(4.0, innerH);
 
     return SizedBox(
       width: width,
@@ -489,6 +439,7 @@ class _PotWithWater extends StatelessWidget {
               ),
             ),
           ),
+          // Nước
           AnimatedPositioned(
             duration: const Duration(milliseconds: 120),
             curve: Curves.easeOut,
@@ -510,46 +461,51 @@ class _PotWithWater extends StatelessWidget {
               ),
             ),
           ),
-          Positioned(
-            left: innerPad + 6,
-            right: innerPad + 6,
-            top: innerPad + (lineY - tolPx),
-            height: (tolPx * 2).clamp(6.0, innerH),
-            child: AnimatedBuilder(
-              animation: pulse,
-              builder: (_, __) => Container(
-                decoration: BoxDecoration(
-                  color: Colors.amber.withOpacity(0.20 + 0.10 * pulse.value),
-                  borderRadius: BorderRadius.circular(6),
+          // Các mốc 5/10/15/20 (từ đáy lên). Mốc đã đạt => xanh (pulsing).
+          ...List.generate(marks.length, (i) {
+            final frac = markFractions[i];
+            final yFromTop = innerPad + (1.0 - frac) * innerH;
+            final isAchieved = achievedIndex >= 0 && i <= achievedIndex;
+            return Positioned(
+              left: innerPad + 6,
+              right: innerPad + 6,
+              top: yFromTop - 1.5,
+              height: 3,
+              child: AnimatedBuilder(
+                animation: pulse,
+                builder: (_, __) => Container(
+                  decoration: BoxDecoration(
+                    color: isAchieved
+                        ? (Color.lerp(Colors.green.shade600, Colors.green.shade300, 0.5 + 0.5 * pulse.value))
+                        : Colors.amber.withOpacity(0.55),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
-            ),
-          ),
-          Positioned(
-            left: innerPad + 4,
-            right: innerPad + 4,
-            top: innerPad + lineY - 1,
-            height: 2,
-            child: AnimatedBuilder(
-              animation: pulse,
-              builder: (_, __) => Container(
-                color: Color.lerp(Colors.orange, Colors.green, pulse.value),
+            );
+          }),
+          // Nhãn mốc
+          ...List.generate(marks.length, (i) {
+            final frac = markFractions[i];
+            final yFromTop = (innerPad + (1.0 - frac) * innerH - 22)
+                .clamp(0.0, height - 22);
+            final isTopAchieved = achievedIndex == i;
+            return Positioned(
+              left: 0,
+              right: 0,
+              top: yFromTop,
+              child: IgnorePointer(
+                child: Text(
+                  '${marks[i]}',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    color: isTopAchieved ? Colors.green.shade800 : Colors.brown,
+                  ),
+                ),
               ),
-            ),
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            top: (innerPad + lineY - tolPx - 22).clamp(0.0, height - 22),
-            child: const IgnorePointer(
-              child: Text(
-                'Vạch chuẩn',
-                textAlign: TextAlign.center,
-                style:
-                TextStyle(fontWeight: FontWeight.w800, color: Colors.brown),
-              ),
-            ),
-          ),
+            );
+          }),
         ],
       ),
     );

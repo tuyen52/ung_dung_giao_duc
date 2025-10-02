@@ -22,82 +22,86 @@ class GamePauseMenu extends StatelessWidget {
     final size = MediaQuery.sizeOf(context);
     final maxW = math.min(360.0, size.width * 0.9);
 
-    return BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: maxW),
-          child: Material(
-            color: Colors.black.withOpacity(0.7),
-            borderRadius: BorderRadius.circular(24),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: FocusTraversalGroup(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Semantics(
-                      header: true,
-                      child: Text(
-                        'GAME TẠM DỪNG',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
+    // CẬP NHẬT: Thêm Container để làm mờ nền và chặn tương tác với game
+    return Container(
+      color: Colors.black.withOpacity(0.3), // Lớp màu này sẽ chặn các thao tác chạm
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxW),
+            child: Material(
+              color: Colors.black.withOpacity(0.7),
+              borderRadius: BorderRadius.circular(24),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: FocusTraversalGroup(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Semantics(
+                        header: true,
+                        child: Text(
+                          'GAME TẠM DỪNG',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 20),
+                      const SizedBox(height: 20),
 
-                    // TIẾP TỤC
-                    _semanticButton(
-                      label: 'Tiếp tục trò chơi',
-                      child: _menuButton(
-                        context,
-                        icon: Icons.play_arrow_rounded,
-                        text: 'TIẾP TỤC',
-                        onPressed: onResumed,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    // CHƠI LẠI
-                    _semanticButton(
-                      label: 'Chơi lại từ đầu',
-                      child: _menuButton(
-                        context,
-                        icon: Icons.replay_rounded,
-                        text: 'CHƠI LẠI',
-                        onPressed: onRestart,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    // CÀI ĐẶT (nếu có)
-                    if (onSettings != null) ...[
+                      // TIẾP TỤC
                       _semanticButton(
-                        label: 'Cài đặt âm thanh/tuỳ chọn',
+                        label: 'Tiếp tục trò chơi',
                         child: _menuButton(
                           context,
-                          icon: Icons.settings_rounded,
-                          text: 'CÀI ĐẶT',
-                          onPressed: onSettings,
+                          icon: Icons.play_arrow_rounded,
+                          text: 'TIẾP TỤC',
+                          onPressed: onResumed,
                         ),
                       ),
                       const SizedBox(height: 12),
-                    ],
 
-                    // THOÁT
-                    _semanticButton(
-                      label: 'Thoát trò chơi',
-                      child: _menuButton(
-                        context,
-                        icon: Icons.exit_to_app_rounded,
-                        text: 'THOÁT',
-                        onPressed: onExit,
+                      // CHƠI LẠI
+                      _semanticButton(
+                        label: 'Chơi lại từ đầu',
+                        child: _menuButton(
+                          context,
+                          icon: Icons.replay_rounded,
+                          text: 'CHƠI LẠI',
+                          onPressed: onRestart,
+                        ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 12),
+
+                      // CÀI ĐẶT (nếu có)
+                      if (onSettings != null) ...[
+                        _semanticButton(
+                          label: 'Cài đặt âm thanh/tuỳ chọn',
+                          child: _menuButton(
+                            context,
+                            icon: Icons.settings_rounded,
+                            text: 'CÀI ĐẶT',
+                            onPressed: onSettings,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+
+                      // THOÁT
+                      _semanticButton(
+                        label: 'Thoát trò chơi',
+                        child: _menuButton(
+                          context,
+                          icon: Icons.exit_to_app_rounded,
+                          text: 'THOÁT',
+                          onPressed: onExit,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

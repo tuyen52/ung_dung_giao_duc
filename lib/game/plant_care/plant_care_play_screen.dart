@@ -190,7 +190,6 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
     }
   }
 
-  // ===== THAY ĐỔI 2: Cập nhật hộp thoại xác nhận =====
   Future<void> _promptEndDay() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -202,11 +201,11 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Quay lại'), // Đổi tên nút
+            child: const Text('Quay lại'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Xác nhận'), // Đổi tên nút
+            child: const Text('Xác nhận'),
           ),
         ],
       ),
@@ -264,37 +263,45 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
     return (low: low, high: high);
   }
 
+  // ===== TƯỚI NƯỚC (mốc 5/10/15/20): cộng trực tiếp; applyTool(delta: 0) để tránh cộng đôi =====
   Future<void> _openWateringMiniGame() async {
-    final band = _state.stageConfig.bands[statWater]!;
-    final seed0 = (_state.dayIndex * 733) ^ (_state.stage.index * 997) ^ (widget.difficulty.index * 53);
-    final seed = _dailySeed(seed0);
-    final tgt = _dailyBand(band: band, seed: seed, shiftFactor: 0.4, scaleMin: 0.92, scaleMax: 1.08);
     final res = await _runPaused(() async {
       return await Navigator.push<WateringMiniGameResult>(
         context,
         MaterialPageRoute(
           builder: (_) => WateringMinigamePage(
-            targetLow: tgt.low,
-            targetHigh: tgt.high,
-            durationSec: 15,
-            stage: _state.stage,
+            stage: _state.stage, // không truyền durationSec
           ),
           fullscreenDialog: true,
         ),
       );
     });
     if (res == null) return;
-    final delta = 0.8 + res.score0to1 * 2.2;
-    _state.applyTool(ToolType.water, delta: delta);
+
+    // 1) Cộng trực tiếp nước: 0/5/10/15/20
+    _state.stats.water =
+        (_state.stats.water + res.addedPoints).clamp(0.0, 100.0);
+
+    // 2) Kích hoạt hậu kỳ (growth/health…) mà KHÔNG tăng nước lần hai
+    _state.applyTool(ToolType.water, delta: 0);
+
     setState(() {});
   }
 
   Future<void> _openLightMiniGame() async {
     final band = _state.stageConfig.bands[statLight]!;
     final current = (_state.stats.light / 100.0).clamp(0.0, 1.0);
-    final seed0 = (_state.dayIndex * 131071) ^ (_state.stage.index * 4099) ^ (widget.difficulty.index * 233);
+    final seed0 = (_state.dayIndex * 131071) ^
+    (_state.stage.index * 4099) ^
+    (widget.difficulty.index * 233);
     final seed = _dailySeed(seed0);
-    final tgt = _dailyBand(band: band, seed: seed, shiftFactor: 0.5, scaleMin: 0.9, scaleMax: 1.1);
+    final tgt = _dailyBand(
+      band: band,
+      seed: seed,
+      shiftFactor: 0.5,
+      scaleMin: 0.9,
+      scaleMax: 1.1,
+    );
     final res = await _runPaused(() async {
       return await Navigator.push<LightMiniGameResult>(
         context,
@@ -319,14 +326,25 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
 
   Future<void> _openNutrientMiniGame() async {
     final band = _state.stageConfig.bands[statNutrient]!;
-    final seed0 = (_state.dayIndex * 1000003) ^ (_state.stage.index * 9176) ^ (widget.difficulty.index * 271);
+    final seed0 = (_state.dayIndex * 1000003) ^
+    (_state.stage.index * 9176) ^
+    (widget.difficulty.index * 271);
     final seed = _dailySeed(seed0);
-    final tgt = _dailyBand(band: band, seed: seed, shiftFactor: 0.5, scaleMin: 0.9, scaleMax: 1.1);
+    final tgt = _dailyBand(
+      band: band,
+      seed: seed,
+      shiftFactor: 0.5,
+      scaleMin: 0.9,
+      scaleMax: 1.1,
+    );
     final res = await _runPaused(() async {
       return await Navigator.push<NutrientMiniGameResult>(
         context,
         MaterialPageRoute(
-          builder: (_) => NutrientMixMinigamePage(targetLow: tgt.low, targetHigh: tgt.high),
+          builder: (_) => NutrientMixMinigamePage(
+            targetLow: tgt.low,
+            targetHigh: tgt.high,
+          ),
           fullscreenDialog: true,
         ),
       );
@@ -342,7 +360,10 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
       return await Navigator.push<PestCatchMiniGameResult>(
         context,
         MaterialPageRoute(
-          builder: (_) => const PestCatchMinigamePage(durationSec: 20, bugs: 10),
+          builder: (_) => const PestCatchMinigamePage(
+            durationSec: 20,
+            bugs: 10,
+          ),
           fullscreenDialog: true,
         ),
       );
@@ -354,7 +375,9 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
   }
 
   Future<void> _openPruneMiniGame() async {
-    final daySeed0 = (_state.dayIndex * 4241) ^ (_state.stage.index * 73) ^ (widget.difficulty.index * 11);
+    final daySeed0 = (_state.dayIndex * 4241) ^
+    (_state.stage.index * 73) ^
+    (widget.difficulty.index * 11);
     final daySeed = _dailySeed(daySeed0);
     final branches = switch (_state.stage) {
       PlantStage.seed => 5,
@@ -366,7 +389,11 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
       return await Navigator.push<PruneMiniGameResult>(
         context,
         MaterialPageRoute(
-          builder: (_) => PruneMinigamePage(durationSec: 20, branches: branches, daySeed: daySeed),
+          builder: (_) => PruneMinigamePage(
+            durationSec: 20,
+            branches: branches,
+            daySeed: daySeed,
+          ),
           fullscreenDialog: true,
         ),
       );
@@ -510,9 +537,9 @@ class _PlantCarePlayScreenState extends State<PlantCarePlayScreen>
                       ),
                     ),
                   ),
-                  Container
-                    (
-                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 12, horizontal: 8),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       boxShadow: [
@@ -746,7 +773,6 @@ class _PlantCard extends StatelessWidget {
   }
 }
 
-// ===== THAY ĐỔI 1: Cập nhật tên nút thành "Kết thúc chăm sóc ngày" =====
 class _TopInfoBar extends StatelessWidget {
   final int dayIndex, totalDays;
   final String timeText;
@@ -781,7 +807,7 @@ class _TopInfoBar extends StatelessWidget {
             FilledButton.tonalIcon(
               onPressed: onEndDayPressed,
               icon: const Icon(Icons.done_all, size: 18),
-              label: const Text('Kết thúc chăm sóc ngày'), // Đổi tên nút ở đây
+              label: const Text('Kết thúc chăm sóc ngày'),
               style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 12)),
             ),
           ],
